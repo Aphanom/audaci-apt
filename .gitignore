@@ -8,3 +8,5 @@ audaci_crash.log
 .vscode/
 model/
 models/
+audaci_library.db
+*.db
