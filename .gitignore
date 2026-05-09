@@ -6,3 +6,5 @@ build/
 dist/
 audaci_crash.log
 .vscode/
+model/
+models/

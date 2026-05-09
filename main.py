@@ -76,7 +76,7 @@ import core.db as db
 from core.lyrics_handler import fetch_synced_lyrics, parse_lrc
 from core.nlu import analyze_intent
 
-# --- ФИКС ПУТЕЙ ДЛЯ СКОМПИЛИРОВАННОГО ФАЙЛА ---
+
 if getattr(sys, 'frozen', False):
     # Если запущено как бинарник, берем временную папку распаковки
     base_dir = sys._MEIPASS
@@ -136,16 +136,13 @@ def main(page: ft.Page):
     global_page = page
 
     page.title = "Audaci"
-    page.window_icon = icon_path
-
+    page.window.icon = icon_path
     page.window.prevent_close = True 
 
     def handle_window_events(e):
         import os
 
         if e.type == ft.WindowEventType.FOCUS:
-            # ТОТ САМЫЙ ФИКС ДЛЯ ХОТКЕЕВ (Адаптация под новый Flet):
-            # Фокусируемся на кнопке Play, чтобы движок перехватил клавиатуру
             try:
                 play_button.focus()
             except:
@@ -1320,18 +1317,16 @@ def main(page: ft.Page):
                 else: show_snackbar("Файл должен быть изображением (jpg, png, gif, bmp, webp)")
             else: show_snackbar("Файл не найден. Проверьте путь.")
         
-        def open_file_dialog(_):
-            import tkinter as tk
-            from tkinter import filedialog
-            root = tk.Tk(); root.withdraw()
-            file_path = filedialog.askopenfilename(
-                title="Выберите изображение для обложки",
-                filetypes=[("Изображения", "*.jpg *.jpeg *.png *.gif *.bmp *.webp"), ("Все файлы", "*.*")]
+        async def open_file_dialog(_):
+            # Создаем экземпляр и сразу вызываем асинхронный метод
+            files = await ft.FilePicker().pick_files(
+                dialog_title="Выберите изображение для обложки",
+                allowed_extensions=["jpg", "jpeg", "png", "gif", "bmp", "webp"]
             )
-            root.destroy()
-            if file_path:
-                cover_path_field.value = file_path
-                page.update()
+            # Если пользователь выбрал файл
+            if files and files[0]:
+                cover_path_field.value = files[0].path
+                cover_path_field.update()
         
         content_items = []
         if cover_options:
@@ -1392,6 +1387,58 @@ def main(page: ft.Page):
         dlg.open = True
         page.update()
 
+    def rename_playlist(old_name):
+        for overlay in page.overlay[:]:
+            if isinstance(overlay, ft.AlertDialog) and overlay.open:
+                overlay.open = False
+
+        new_name_field = ft.TextField(
+            label="Новое название плейлиста",
+            value=old_name,
+            autofocus=True,
+            on_focus=lambda _: (is_typing.__setitem__(0, True)),
+            on_blur=lambda _: (is_typing.__setitem__(0, False)),
+        )
+
+        def confirm_rename(_):
+            new_name = new_name_field.value.strip()
+            if not new_name:
+                show_snackbar("Название не может быть пустым")
+                return
+            if new_name == old_name:
+                close_dialog(dlg)
+                return
+            if new_name in user_playlists:
+                show_snackbar("Плейлист с таким именем уже существует")
+                return
+
+            # Переносим треки и обложку под новое имя
+            user_playlists[new_name] = user_playlists.pop(old_name)
+            save_playlists()
+            update_playlist_sidebar()
+            show_snackbar(f"Плейлист переименован в '{new_name}'")
+
+            # Если мы прямо сейчас сидим в этом плейлисте — обновляем заголовок
+            if current_folder_text.value == f"Плейлист: {old_name}":
+                current_folder_text.value = f"Плейлист: {new_name}"
+                page.update()
+
+            close_dialog(dlg)
+
+        new_name_field.on_submit = confirm_rename
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("Переименовать плейлист"),
+            content=new_name_field,
+            actions=[
+                ft.TextButton("Отмена", on_click=lambda _: close_dialog(dlg)),
+                ft.TextButton("Сохранить", on_click=confirm_rename),
+            ],
+        )
+        page.overlay.append(dlg)
+        dlg.open = True
+        page.update()
+
     def load_smart_collection(collection_data):
         disable_karaoke()
         track_paths = collection_data["func"]()
@@ -1401,10 +1448,7 @@ def main(page: ft.Page):
             
         current_folder_text.value = collection_data["name"]
         
-        # --- ФИКС: Обновляем иконку/обложку в заголовке контента ---
-        # Если хочешь, чтобы в шапке Home View тоже была картинка плейлиста, 
-        # можно добавить её перед greeting_text или current_folder_text
-        
+        # --- Обновляем иконку/обложку в заголовке контента ---
         back_button.visible = False
         show_home_view()
         
@@ -1584,6 +1628,7 @@ def main(page: ft.Page):
                             ft.PopupMenuButton(
                                 icon=ft.Icons.MORE_VERT, icon_size=14,
                                 items=[
+                                    ft.PopupMenuItem(content="Переименовать", on_click=lambda _, name=pl_name: rename_playlist(name)),
                                     ft.PopupMenuItem(content="Обложка", on_click=lambda _, name=pl_name: change_playlist_cover(name)),
                                     ft.PopupMenuItem(content="Удалить", on_click=lambda _, name=pl_name: delete_playlist(name)),
                                 ]
@@ -1717,7 +1762,7 @@ def main(page: ft.Page):
                             except Exception:
                                 pass 
                             
-                            # ФИКС: Целимся СТРОГО в текущую строчку (new_idx).
+                            #  Целимся СТРОГО в текущую строчку (new_idx).
                             # Никаких +3! Из-за длинных переносимых строк они занимали весь экран 
                             # и наглухо выдавливали нужный текст наверх за пределы окна.
                             scroll_target_idx = max(0, new_idx - 2)
@@ -1976,6 +2021,37 @@ def main(page: ft.Page):
     
     eq_reset_btn = ft.TextButton("Сбросить", icon=ft.Icons.REFRESH, icon_color="red400", on_click=reset_eq, disabled=not settings["equalizer_enabled"])
 
+    async def add_music_folder(_=None):
+        # 1. Сразу вызываем системное окно выбора папки
+        path = await ft.FilePicker().get_directory_path(
+            dialog_title="Выберите папку с музыкой"
+        )
+        
+        # 2. Если пользователь выбрал путь (не нажал "Отмена")
+        if path:
+            # Нормализуем путь (убираем лишние пробелы и приводим к стандарту системы)
+            path = os.path.abspath(path)
+            
+            # 3. Проверяем, не была ли эта папка добавлена ранее
+            if path in settings["music_folders"]:
+                return show_snackbar("Эта папка уже добавлена")
+            
+            # 4. Добавляем в настройки и сохраняем
+            settings["music_folders"].append(path)
+            save_settings()
+            
+            # 5. Обновляем визуальный список папок в настройках
+            update_music_folders_list()
+            
+            # 6. Уведомляем пользователя
+            show_snackbar(f"Папка добавлена: {os.path.basename(path)}")
+            
+            # 7. Запускаем фоновое сканирование новых треков
+            threading.Thread(target=scan_library, daemon=True).start()
+            
+            # Обновляем страницу для применения изменений
+            page.update()
+
     def toggle_eq(e):
         enabled = e.control.value
         settings["equalizer_enabled"] = enabled
@@ -2105,7 +2181,7 @@ def main(page: ft.Page):
             ft.Divider(height=15),
             music_folders_list_container,
             ft.Divider(height=15),
-            ft.Button("➕ Добавить папку", on_click=lambda _: add_music_folder(), icon=ft.Icons.FOLDER_OPEN, color="#FFFFFF", bgcolor="#1DB954"),
+            ft.Button("➕ Добавить папку", on_click=add_music_folder, icon=ft.Icons.FOLDER_OPEN, color="#FFFFFF", bgcolor="#1DB954"),
             ft.Divider(height=30),
         ], scroll=ft.ScrollMode.ALWAYS, expand=True),
 
@@ -2459,49 +2535,7 @@ def main(page: ft.Page):
             music_folders_list_container.controls.append(ft.Text("Папки с музыкой не добавлены", size=12, color="grey"))
         music_folders_list_container.update()
     
-    def add_music_folder():
-        for overlay in page.overlay[:]:
-            if isinstance(overlay, ft.AlertDialog) and overlay.open: overlay.open = False
-        
-        folder_path_field = ft.TextField(
-            label="Путь к папке", hint_text="/Users/username/Music", autofocus=True, multiline=False,
-            on_focus=lambda _: (is_typing.__setitem__(0, True)), 
-            on_blur=lambda _: (is_typing.__setitem__(0, False))  
-        )
-        
-        def add_folder_action(_=None):
-            folder_path = folder_path_field.value.strip()
-            if not folder_path: return show_snackbar("Введите путь к папке")
-            folder_path = os.path.expanduser(folder_path)
-            if not os.path.exists(folder_path): return show_snackbar(f"Папка не найдена: {folder_path}")
-            if not os.path.isdir(folder_path): return show_snackbar(f"Это не папка: {folder_path}")
-            if folder_path in settings["music_folders"]: return show_snackbar("Эта папка уже добавлена")
-            
-            settings["music_folders"].append(folder_path)
-            save_settings()
-            update_music_folders_list()
-            show_snackbar(f"Папка добавлена: {os.path.basename(folder_path)}")
-            threading.Thread(target=scan_library, daemon=True).start()
-            
-            for overlay in page.overlay[:]:
-                if isinstance(overlay, ft.AlertDialog) and overlay.open: overlay.open = False
-            page.update()
-        
-        dlg = ft.AlertDialog(
-            title=ft.Text("Добавить папку с музыкой"),
-            content=ft.Column([
-                ft.Text("Введите полный путь к папке:", size=12),
-                ft.Divider(height=10), folder_path_field, ft.Divider(height=15),
-                ft.Text("Примеры путей:", size=11, weight="bold"),
-                ft.Text("~/Music", size=10, color="grey"),
-                ft.Text("/Users/username/Music", size=10, color="grey"),
-            ], tight=True, spacing=8),
-            actions=[ft.TextButton("Отмена", on_click=lambda _: close_dialog(dlg)), ft.TextButton("Добавить", on_click=add_folder_action)],
-        )
-        folder_path_field.on_submit = add_folder_action
-        page.overlay.append(dlg)
-        dlg.open = True
-        page.update()
+    
     
     def remove_music_folder(folder_path):
         if folder_path in settings["music_folders"]:
@@ -2541,7 +2575,7 @@ def main(page: ft.Page):
         padding=ft.Padding(10, 5, 0, 10),
     )
     
-    # ФИКС: Убрали ft.Divider и добавили padding=10 для верхнего блока
+    #  Убрали ft.Divider и добавили padding=10 для верхнего блока
     sidebar_col = ft.Column([
         ft.Container(
             content=ft.Column([
@@ -2714,7 +2748,7 @@ def main(page: ft.Page):
             play_button.icon = ft.Icons.PAUSE_CIRCLE_FILLED
             focus_play_btn.icon = ft.Icons.PAUSE_CIRCLE_FILLED 
             
-        # ФИКС: Точечное обновление кнопок
+        #  Точечное обновление кнопок
         try:
             play_button.update()
             focus_play_btn.update()
@@ -3137,7 +3171,7 @@ def main(page: ft.Page):
                     for i, (ts, txt) in enumerate(current_lyrics_data):
                         display_text = txt.strip() if txt.strip() else "♪"
                         
-                        # ФИКС: Оборачиваем ключи в ft.ScrollKey(), чтобы движок Flet "увидел" их для скролла!
+                        #  Оборачиваем ключи в ft.ScrollKey(), чтобы движок Flet "увидел" их для скролла!
                         lyrics_list_view.controls.append(
                             ft.Container(
                                 content=ft.Text(display_text, size=24, color="white", weight=ft.FontWeight.W_600, text_align=ft.TextAlign.LEFT),
@@ -3164,7 +3198,7 @@ def main(page: ft.Page):
                     lyrics_list_view.controls.append(err_msg)
                     focus_lyrics_list_view.controls.append(err_msg)
                     
-                # ФИКС: Обновляем только тексты, не трогаем сетку!
+                #  Обновляем только тексты, не трогаем сетку!
                 try: 
                     lyrics_list_view.update()
                     focus_lyrics_list_view.update()
@@ -3173,7 +3207,7 @@ def main(page: ft.Page):
             threading.Thread(target=_fetch_lyrics, daemon=True).start()
             # ==================================
 
-            # ФИКС: Убрали глобальный page.update() в конце! Обновляем только плеер.
+            #  Убрали глобальный page.update() в конце! Обновляем только плеер.
             try:
                 player_control_bar.update()
                 right_panel.update()
@@ -4218,15 +4252,17 @@ def main(page: ft.Page):
         on_change=lambda e: apply_theme(e.control.value, show_toast=False, animate_transition=True)
     )
 
-    def open_first_run_folder(_):
-        import tkinter as tk
-        from tkinter import filedialog
-        root = tk.Tk(); root.withdraw()
-        folder_path = filedialog.askdirectory(title="Где твоя музыка?")
-        root.destroy()
-        if folder_path:
-            first_run_folder_val.value = folder_path
+    async def open_first_run_folder(_):
+        # Вызываем асинхронное окно выбора папки
+        path = await ft.FilePicker().get_directory_path(
+            dialog_title="Выберите папку с вашей музыкой"
+        )
+        
+        # Если пользователь не нажал "Отмена" и выбрал путь
+        if path:
+            first_run_folder_val.value = path
             first_run_folder_val.update()
+            print(f"[Audaci] Выбрана новая директория: {path}")
 
     def finish_first_run(_):
         async def _fade_out():
