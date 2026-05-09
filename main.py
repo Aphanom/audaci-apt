@@ -620,6 +620,12 @@ def main(page: ft.Page):
             focus_lyrics_container.visible = False
             track_grid.visible = (view_mode[0] == "grid")
             track_list.visible = (view_mode[0] == "list")
+            
+            # --- ВОТ ЭТИ ДВЕ СТРОЧКИ СПАСУТ ТВОЙ СКРОЛЛ ---
+            track_grid.expand = True
+            track_list.expand = True
+            # ----------------------------------------------
+            
             is_light = is_app_light_mode[0]
             karaoke_btn.icon_color = "#000000" if is_light else "grey"
             try:
@@ -689,6 +695,11 @@ def main(page: ft.Page):
     def close_dialog(dlg):
         dlg.open = False
         page.update()
+        
+        # Аккуратно удаляем закрытый диалог из памяти
+        if dlg in page.overlay:
+            page.overlay.remove(dlg)
+            page.update()
 
     def add_to_playlist(file_path):
         playlist_items = []
@@ -2885,32 +2896,43 @@ def main(page: ft.Page):
             focus_queue_container.visible = is_queue_active[0]
             focus_queue_container.opacity = 1 if is_queue_active[0] else 0
         else:
+            # 1. Возвращаем видимость панелей
             right_panel.visible = not is_small_screen[0]
             right_divider.visible = not is_small_screen[0]
             focus_view.visible = False
-            home_view.visible = True
+            
+            # Определяем, куда возвращаться: в поиск или на главную
+            if search_input.value:
+                search_view.visible = True
+                home_view.visible = False
+            else:
+                home_view.visible = True
+                search_view.visible = False
 
-            # ВОЗВРАЩАЕМ отступы для обычного режима
+            # 2. ВОЗВРАЩАЕМ отступы и рамки
             main_content.padding = ft.Padding(left=30, top=30, right=30, bottom=0)
             main_content.border_radius = 10
 
+            # 3. Восстанавливаем высоту плеера
             player_control_bar.height = 115 if is_small_screen[0] else 90            
             player_control_bar.opacity = 1
-            player_control_bar.update()
-
-            focus_lyrics_container.visible = False
-            focus_lyrics_container.opacity = 0
-            focus_queue_container.visible = False
-            focus_queue_container.opacity = 0
             
+            # --- КРИТИЧЕСКИЙ ФИКС ВИДИМОСТИ ---
+            # Если караоке выключено — показываем треки. Если включено — показываем только текст.
             track_grid.visible = not karaoke_mode[0] and view_mode[0] == "grid"
             track_list.visible = not karaoke_mode[0] and view_mode[0] == "list"
+            lyrics_container.visible = karaoke_mode[0] # <--- Вот она, строчка, которая спасает от пустого экрана!
+            
+            # Сбрасываем цвета кнопок
             focus_btn.icon_color = "#000000" if is_app_light_mode[0] else "grey"
             
+            # Если была очередь — возвращаем её
             if is_queue_active[0]:
                 right_metadata_col.visible = False
                 right_queue_col.visible = True
-
+                
+            # 4. ФИКС ДЛЯ ASTRA LINUX (Layout Pump)
+            # Заставляем систему отрисовать всё разом
         main_content.update()
         page.update()
     
