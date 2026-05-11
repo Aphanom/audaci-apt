@@ -13,7 +13,7 @@ colorthief>=0.2.1
 Pillow>=10.3.0
 
 # --- AI & Voice Control (Vosk) ---
-vosk>=0.3.45
+vosk>=0.3.44
 sounddevice>=0.4.6
 numpy>=1.26.4
 
