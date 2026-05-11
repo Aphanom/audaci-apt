@@ -25,3 +25,7 @@ Thumbs.db
 # Локальные скрипты и пакеты
 make_release.sh
 build_deb/
+
+check_tags.py
+test_forgotten.py
+a.txt
