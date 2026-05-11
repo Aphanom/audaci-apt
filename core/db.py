@@ -3,14 +3,18 @@ import os
 import random
 import datetime
 
-DB_PATH = "audaci_library.db"
+# --- УМНЫЙ ПУТЬ К БАЗЕ ДАННЫХ ---
+USER_HOME = os.path.expanduser("~")
+APP_DIR = os.path.join(USER_HOME, ".audaci")
+os.makedirs(APP_DIR, exist_ok=True) # Создаем скрытую папку, если ее нет
+
+DB_PATH = os.path.join(APP_DIR, "audaci_library.db")
 
 def get_connection():
-    # Используем соединение с отключенной проверкой потоков для стабильной работы с Flet
+    # Единая точка подключения для всего приложения
     return sqlite3.connect(DB_PATH, check_same_thread=False)
 
 def init_db():
-    """Создает таблицы. Мы отказались от анализа звука в пользу тегов Last.fm."""
     with get_connection() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS tracks (
@@ -22,7 +26,7 @@ def init_db():
                 duration_ms INTEGER,
                 cover_path TEXT,
                 lyrics TEXT,
-                mood_tags TEXT  -- Главный источник для AI Диджея
+                mood_tags TEXT
             )
         """)
         conn.execute("""
@@ -35,7 +39,6 @@ def init_db():
         """)
 
 def add_track(file_path, folder_path, info):
-    """Добавляет трек в базу данных с тегами настроения."""
     with get_connection() as conn:
         conn.execute("""
             INSERT OR REPLACE INTO tracks (
@@ -54,7 +57,6 @@ def add_track(file_path, folder_path, info):
         ))
 
 def get_track(file_path):
-    """Мгновенно получает полные данные трека."""
     with get_connection() as conn:
         conn.row_factory = sqlite3.Row
         cursor = conn.execute("SELECT * FROM tracks WHERE file_path = ?", (str(file_path),))
@@ -62,7 +64,6 @@ def get_track(file_path):
         return dict(row) if row else None
 
 def search_tracks(query):
-    """Умный текстовый поиск по всем полям."""
     try:
         conn = get_connection()
         conn.row_factory = sqlite3.Row
@@ -81,11 +82,9 @@ def search_tracks(query):
         return []
 
 def get_tracks_by_vibe(vibe_category):
-    import sqlite3
-    conn = sqlite3.connect('audaci_library.db')
+    conn = get_connection() # ИСПРАВЛЕНО
     cursor = conn.cursor()
     
-    # Универсальная матрица настроений для любого пользователя
     vibe_map = {
         "happy": ["happy", "upbeat", "uplifting", "feel good", "cheerful", "fun", "joy", "summer", "dance pop", "comedy"],
         "sad": ["sad", "melancholic", "melancholy", "depressing", "heartbreak", "crying", "emo", "tear", "sadcore", "grief"],
@@ -100,8 +99,6 @@ def get_tracks_by_vibe(vibe_category):
     }
     
     keywords = vibe_map.get(vibe_category, [vibe_category])
-        
-    # Формируем SQL-запрос для поиска любого из подходящих слов в тегах
     conditions = [f"mood_tags LIKE '%{kw}%'" for kw in keywords]
     query = "SELECT file_path FROM tracks WHERE mood_tags IS NOT NULL AND (" + " OR ".join(conditions) + ")"
     
@@ -116,7 +113,6 @@ def get_tracks_by_vibe(vibe_category):
         conn.close()
 
 def generate_smart_wave(limit=25):
-    """Генерирует волну на основе сходства артиста и папки (без тяжелого аудио-анализа)."""
     conn = get_connection()
     c = conn.cursor()
     c.execute("SELECT file_path, artist, folder_path FROM tracks ORDER BY RANDOM() LIMIT 1")
@@ -128,16 +124,13 @@ def generate_smart_wave(limit=25):
     seed_path, seed_artist, seed_folder = seed
     wave_tracks = {seed_path}
 
-    # 1. Добавляем треки того же артиста (до 10 штук)
     if seed_artist and seed_artist != "Неизвестен":
         c.execute("SELECT file_path FROM tracks WHERE artist = ? AND file_path != ? LIMIT 10", (seed_artist, seed_path))
         wave_tracks.update([r[0] for r in c.fetchall()])
 
-    # 2. Добавляем из той же папки (вероятнее всего, один альбом)
     c.execute("SELECT file_path FROM tracks WHERE folder_path = ? AND file_path != ? LIMIT 10", (seed_folder, seed_path))
     wave_tracks.update([r[0] for r in c.fetchall()])
 
-    # 3. Если места еще много, добиваем случайными
     if len(wave_tracks) < limit:
         placeholders = ','.join('?' for _ in wave_tracks)
         c.execute(f"SELECT file_path FROM tracks WHERE file_path NOT IN ({placeholders}) ORDER BY RANDOM() LIMIT ?", 
@@ -147,7 +140,6 @@ def generate_smart_wave(limit=25):
     conn.close()
     wave_list = list(wave_tracks)
     random.shuffle(wave_list)
-    # Ставим стартовый трек первым
     if seed_path in wave_list: wave_list.remove(seed_path)
     wave_list.insert(0, seed_path)
     return wave_list
@@ -195,14 +187,10 @@ def remove_folder_tracks(folder_path):
         conn.execute("DELETE FROM tracks WHERE folder_path LIKE ?", (f"{folder_path}%",))
 
 def get_listening_history(limit=150):
-    """Получает историю прослушиваний вместе с метаданными треков."""
     try:
         conn = get_connection()
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        
-        # Берем историю и джоиним с треками. 
-        # timestamp переименовываем в played_at на лету для совместимости с main.py
         query = """
             SELECT h.file_path, h.timestamp AS played_at, t.title, t.artist, t.album, t.duration_ms, t.cover_path
             FROM history h
@@ -212,7 +200,6 @@ def get_listening_history(limit=150):
         """
         cursor.execute(query, (limit,))
         results = [dict(row) for row in cursor.fetchall()]
-        
         conn.close()
         return results
     except Exception as e:
@@ -220,10 +207,8 @@ def get_listening_history(limit=150):
         return []
     
 def get_top_tracks(days=30, limit=50):
-    """Вариант 1 и 2: Топ прослушиваний за период"""
     date_limit = (datetime.datetime.now() - datetime.timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
-    # Подставь свой DB_PATH или то, как у тебя называется переменная подключения
-    conn = sqlite3.connect('audaci_library.db') # Убедись, что тут правильный путь к базе
+    conn = get_connection() # ИСПРАВЛЕНО
     cursor = conn.cursor()
     cursor.execute('''
         SELECT file_path, COUNT(*) as cnt 
@@ -238,10 +223,8 @@ def get_top_tracks(days=30, limit=50):
     return paths
 
 def get_forgotten_treasures(limit=50):
-    """Вариант 3: Слушал раньше часто, но забыл"""
-    conn = sqlite3.connect('audaci_library.db') # Убедись, что тут правильный путь к базе
+    conn = get_connection() # ИСПРАВЛЕНО
     cursor = conn.cursor()
-    # Находим треки, которые в сумме слушали больше 5 раз, но последний раз был более 30 дней назад
     cursor.execute('''
         SELECT file_path FROM history 
         GROUP BY file_path 

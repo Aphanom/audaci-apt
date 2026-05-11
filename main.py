@@ -130,7 +130,6 @@ try:
 except Exception as e:
     print(f"[Audaci Tray] Трей не запущен: {e}")
 
-
 def main(page: ft.Page):
     global global_page
     global_page = page

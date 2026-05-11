@@ -23,3 +23,5 @@ watchdog>=4.0.0
 # --- Utilities ---
 requests>=2.31.0
 pystray
+
+flet_desktop
