@@ -30,7 +30,9 @@ jobs:
           rm model.zip
 
       - name: Сборка Windows EXE через Flet
-        run: flet build windows --product "Audaci"
+        env:
+          PYTHONIOENCODING: utf8 # Заставляем Windows понимать спецсимволы загрузки Flet
+        run: echo y | flet build windows --product "Audaci" # Автоматически отвечаем "yes"
 
       - name: Сохранение результата (Windows)
         uses: actions/upload-artifact@v4
@@ -64,7 +66,7 @@ jobs:
           rm model.zip
 
       - name: Сборка macOS APP через Flet
-        run: flet build macos --product "Audaci"
+        run: yes | flet build macos --product "Audaci" # Автоматически отвечаем "yes"
 
       - name: Сохранение результата (macOS)
         uses: actions/upload-artifact@v4
