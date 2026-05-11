@@ -1,0 +1,57 @@
+name: Cross-Platform Build
+
+on:
+  workflow_dispatch: # Позволяет запускать сборку вручную по кнопке
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Скачивание кода
+        uses: actions/checkout@v4
+
+      - name: Установка Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11' # Такая же версия, как у тебя на Astra
+
+      - name: Установка зависимостей
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Сборка Windows EXE
+        run: pyinstaller --noconfirm audaci.spec
+
+      - name: Сохранение результата (Windows)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Audaci-Windows
+          path: dist/
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Скачивание кода
+        uses: actions/checkout@v4
+
+      - name: Установка Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Установка зависимостей
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Сборка macOS APP
+        run: pyinstaller --noconfirm audaci.spec
+
+      - name: Сохранение результата (macOS)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Audaci-macOS
+          path: dist/
