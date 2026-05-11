@@ -1,7 +1,7 @@
 name: Cross-Platform Build
 
 on:
-  workflow_dispatch: # Позволяет запускать сборку вручную по кнопке
+  workflow_dispatch:
 
 jobs:
   build-windows:
@@ -13,13 +13,13 @@ jobs:
       - name: Установка Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11' # Такая же версия, как у тебя на Astra
+          python-version: '3.11'
 
       - name: Установка зависимостей
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller
+          pip install flet
 
       - name: Скачивание языковой модели Vosk
         shell: bash
@@ -29,14 +29,14 @@ jobs:
           mv vosk-model-small-ru-0.22 model
           rm model.zip
 
-      - name: Сборка Windows EXE
-        run: pyinstaller --noconfirm audaci.spec
+      - name: Сборка Windows EXE через Flet
+        run: flet build windows --product "Audaci"
 
       - name: Сохранение результата (Windows)
         uses: actions/upload-artifact@v4
         with:
           name: Audaci-Windows
-          path: dist/
+          path: build/windows/
 
   build-macos:
     runs-on: macos-latest
@@ -49,6 +49,12 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Установка зависимостей
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install flet
+
       - name: Скачивание языковой модели Vosk
         shell: bash
         run: |
@@ -57,17 +63,11 @@ jobs:
           mv vosk-model-small-ru-0.22 model
           rm model.zip
 
-      - name: Установка зависимостей
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
-
-      - name: Сборка macOS APP
-        run: pyinstaller --noconfirm audaci.spec
+      - name: Сборка macOS APP через Flet
+        run: flet build macos --product "Audaci"
 
       - name: Сохранение результата (macOS)
         uses: actions/upload-artifact@v4
         with:
           name: Audaci-macOS
-          path: dist/
+          path: build/macos/
