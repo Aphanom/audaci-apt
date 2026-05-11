@@ -21,6 +21,14 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
+      - name: Скачивание языковой модели Vosk
+        shell: bash
+        run: |
+          curl -L -o model.zip https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip
+          unzip -q model.zip
+          mv vosk-model-small-ru-0.22 model
+          rm model.zip
+
       - name: Сборка Windows EXE
         run: pyinstaller --noconfirm audaci.spec
 
