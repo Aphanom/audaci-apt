@@ -49,6 +49,14 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Скачивание языковой модели Vosk
+        shell: bash
+        run: |
+          curl -L -o model.zip https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip
+          unzip -q model.zip
+          mv vosk-model-small-ru-0.22 model
+          rm model.zip
+
       - name: Установка зависимостей
         run: |
           python -m pip install --upgrade pip
