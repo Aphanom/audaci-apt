@@ -39,6 +39,7 @@ icon_path = os.path.join(assets_dir, "icon.png")
 # --- 2. СИСТЕМНЫЕ НАСТРОЙКИ ---
 IS_LINUX = platform.system() == "Linux"
 IS_WINDOWS = platform.system() == "Windows"
+IS_MAC = platform.system() == "Darwin"
 
 if IS_LINUX:
     # Настройки исключительно для Astra Linux (Fly WM)
@@ -55,9 +56,6 @@ if IS_LINUX:
     if not os.environ.get("DEBUG_GTK"):
         sys.stderr = open(os.devnull, 'w')
     
-    # --- ТОТ САМЫЙ ХАК ДЛЯ ИКОНКИ ---
-    os.environ["FLET_ICON"] = icon_path 
-    
     try:
         from ctypes import cdll
         # Прямое обращение к системной библиотеке GTK
@@ -71,6 +69,7 @@ else:
     os.environ["FLET_RENDER_VIA_GPU"] = "true"
 
 os.environ["FLET_VIEW_TYPE"] = "window"
+os.environ["FLET_ICON"] = icon_path
 
 import flet as ft
 import flet.canvas as cv
@@ -160,15 +159,21 @@ def main(page: ft.Page):
     global_page = page
 
     page.title = "Audaci"
-    page.window.icon = icon_path
+    if IS_WINDOWS:
+        page.window.icon = "icon.ico"
+    elif IS_MAC:
+        page.window.icon = "icon.icns"
+    else:
+        page.window.icon = "icon.png"
     page.window.prevent_close = True 
+    page.update()
 
     def handle_window_events(e):
         import os
 
         if e.type == ft.WindowEventType.FOCUS:
             try:
-                play_button.focus()
+                page.run_task(play_button.focus)
             except:
                 pass
             return
