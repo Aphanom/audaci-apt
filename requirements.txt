@@ -1,5 +1,5 @@
 # --- GUI Framework ---
-flet>=0.23.0
+flet>=0.85.0
 
 # --- Audio & Media ---
 python-vlc>=3.0.20114.43

@@ -16,6 +16,14 @@ import asyncio
 import time
 import random
 import json
+import io
+
+# Исправляем кодировку консоли для Windows, чтобы эмодзи не вызывали UnicodeEncodeError
+if platform.system() == "Windows":
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    except:
+        pass
 
 # --- 1. УМНОЕ ОПРЕДЕЛЕНИЕ ПУТЕЙ (Для работы и в venv, и в бинарнике) ---
 if getattr(sys, 'frozen', False):
@@ -30,6 +38,7 @@ icon_path = os.path.join(assets_dir, "icon.png")
 
 # --- 2. СИСТЕМНЫЕ НАСТРОЙКИ ---
 IS_LINUX = platform.system() == "Linux"
+IS_WINDOWS = platform.system() == "Windows"
 
 if IS_LINUX:
     # Настройки исключительно для Astra Linux (Fly WM)
@@ -75,7 +84,23 @@ from core.player import AudioPlayer
 import core.db as db
 from core.lyrics_handler import fetch_synced_lyrics, parse_lrc
 from core.nlu import analyze_intent
+from theme import AppColors
 
+class AppState:
+    def __init__(self, settings):
+        self.settings = settings
+        self.is_focus_mode = False
+        self.is_small_screen = False
+        self.is_queue_active = False
+        self.karaoke_mode = False
+        self.is_app_light_mode = (settings.get("theme_mode") == "light")
+        self.view_mode = "grid"
+        self.current_track_path = None
+        self.playlist = []
+        self.repeat_mode = 0
+        self.shuffle_mode = False
+        self.current_lyrics_index = -1
+        self.is_typing = False
 
 if getattr(sys, 'frozen', False):
     # Если запущено как бинарник, берем временную папку распаковки
@@ -294,6 +319,7 @@ def main(page: ft.Page):
     
     # Загружаем настройки и сразу устанавливаем theme_mode
     settings = load_settings()
+    state = AppState(settings)
     if settings["theme_mode"] == "dark":
         page.theme_mode = ft.ThemeMode.DARK
         page.bgcolor = "#000000"
@@ -311,65 +337,81 @@ def main(page: ft.Page):
     user_playlists = load_playlists()
     db.init_db()
 
-    def scan_library():
-        from core.tag_fetcher import fetch_mood_from_web
+    async def pick_files_async(dialog_title, allowed_extensions=None):
+        """Открывает диалог выбора файла и возвращает список файлов."""
+        return await ft.FilePicker().pick_files(
+            dialog_title=dialog_title,
+            allowed_extensions=allowed_extensions
+        )
+
+    async def get_directory_path_async(dialog_title):
+        """Открывает диалог выбора папки и возвращает путь."""
+        return await ft.FilePicker().get_directory_path(dialog_title=dialog_title)
+
+    async def scan_library_async():
+        from core.tag_fetcher import fetch_mood_from_web_async
         audio_exts = (".mp3", ".flac", ".wav", ".m4a")
         
         new_tracks_count = 0
-        print("🔍 Начинаю быстрое сканирование медиатеки...")
+        print("[Scan] Начинаю асинхронное сканирование медиатеки...")
         
-        for folder in settings.get("music_folders", []):
+        scan_tasks = []
+        for folder in state.settings.get("music_folders", []):
             if not os.path.exists(folder): continue
             for root, dirs, files in os.walk(folder):
                 for file in files:
                     if file.lower().endswith(audio_exts):
                         full_path = os.path.join(root, file)
-                        
                         if not db.get_track(full_path):
-                            try:
-                                info = get_track_info(full_path)
-                                
-                                # Ищем вайб только в сети
-                                print(f"🌍 Загружаю теги: {file}...")
-                                mood = fetch_mood_from_web(info['artist'], info['title'])
-                                
-                                # Костыль для неразмеченных ликов Канье
-                                if not mood:
-                                    if "BULLY" in full_path or "bully" in info.get('album', '').upper():
-                                        mood = "experimental, dark, art pop"
-                                    elif "Yandhi" in full_path:
-                                        mood = "chill, futuristic, spiritual"
-                                
-                                info['mood_tags'] = mood
-                                db.add_track(full_path, folder, info)
-                                new_tracks_count += 1
-                                
-                            except Exception as e:
-                                print(f"❌ Ошибка: {file}: {e}")
-                                
-        print(f"✅ Готово! Добавлено треков: {new_tracks_count}")
+                            scan_tasks.append((full_path, folder, file))
+        
+        async def process_single_track(full_path, folder, file_name):
+            nonlocal new_tracks_count
+            try:
+                info = get_track_info(full_path)
+                print(f"🌍 Загружаю теги (async): {file_name}...")
+                mood = await fetch_mood_from_web_async(info['artist'], info['title'])
+                
+                if not mood:
+                    if "BULLY" in full_path or "bully" in info.get('album', '').upper():
+                        mood = "experimental, dark, art pop"
+                    elif "Yandhi" in full_path:
+                        mood = "chill, futuristic, spiritual"
+                
+                info['mood_tags'] = mood
+                db.add_track(full_path, folder, info)
+                new_tracks_count += 1
+            except Exception as e:
+                print(f"❌ Ошибка {file_name}: {e}")
+
+        # Обрабатываем пачками по 5 треков, чтобы не спамить API
+        for i in range(0, len(scan_tasks), 5):
+            batch = scan_tasks[i:i+5]
+            await asyncio.gather(*(process_single_track(fp, fd, f) for fp, fd, f in batch))
+            
+        if IS_WINDOWS: print(f"[Success] Done! Added tracks: {new_tracks_count}")
+        else: print(f"✅ Готово! Добавлено треков: {new_tracks_count}")
 
     # === МГНОВЕННЫЙ СКАНЕР ПАПОК (WATCHDOG) ===
     def start_watchdogs():
+        if IS_WINDOWS: print("[Watchdog] Active: monitoring folders...")
+        else: print("[Watchdog] Watchdog активен: следим за папками...")
         try:
             from watchdog.observers import Observer
             from watchdog.events import FileSystemEventHandler
             
             class MusicHandler(FileSystemEventHandler):
-                def process(self, file_path):
+                async def process_async(self, file_path):
                     audio_exts = (".mp3", ".flac", ".wav", ".m4a")
                     if file_path.lower().endswith(audio_exts):
                         if not db.get_track(file_path):
-                            # Даем файлу 0.5 секунды, чтобы он успел полностью скачаться/скопироваться
-                            # Иначе плеер попытается прочитать пустой файл и упадет с ошибкой
-                            time.sleep(0.5) 
+                            await asyncio.sleep(0.5) 
                             
                             try:
-                                from core.tag_fetcher import fetch_mood_from_web
+                                from core.tag_fetcher import fetch_mood_from_web_async
                                 info = get_track_info(file_path)
-                                mood = fetch_mood_from_web(info.get('artist', ''), info.get('title', ''))
+                                mood = await fetch_mood_from_web_async(info.get('artist', ''), info.get('title', ''))
                                 
-                                # Костыль для неразмеченных ликов и новинок
                                 if not mood:
                                     path_upper = file_path.upper()
                                     if "BULLY" in path_upper or "BULLY" in info.get('album', '').upper():
@@ -385,28 +427,20 @@ def main(page: ft.Page):
                                 folder = os.path.dirname(file_path)
                                 db.add_track(file_path, folder, info)
                                 
-                                # Автоматически обновляем UI, если мы находимся на Главной 
-                                # или в той папке, куда упал трек
-                                async def _update_ui():
-                                    if current_folder_text.value in ["Главная", os.path.basename(folder)]:
-                                        # Обновляем без записи в историю навигации
-                                        load_folder(music_path_ref[0], add_to_history=False)
-                                    show_snackbar(f"🎵 Добавлен новый трек: {os.path.basename(file_path)}")
-                                
-                                page.run_task(_update_ui)
+                                if current_folder_text.value in ["Главная", os.path.basename(folder)]:
+                                    load_folder(music_path_ref[0], add_to_history=False)
+                                show_snackbar(f"🎵 Добавлен новый трек: {os.path.basename(file_path)}")
                                 
                             except Exception as e:
                                 print(f"❌ Ошибка watchdog для {file_path}: {e}")
 
                 def on_created(self, event):
                     if not event.is_directory:
-                        # Запускаем в отдельном потоке, чтобы не тормозить ОС
-                        threading.Thread(target=self.process, args=(event.src_path,), daemon=True).start()
+                        page.run_task(self.process_async, event.src_path)
 
                 def on_moved(self, event):
-                    # Если юзер переименовал трек или перетащил из загрузок в папку с музыкой
                     if not event.is_directory:
-                        threading.Thread(target=self.process, args=(event.dest_path,), daemon=True).start()
+                        page.run_task(self.process_async, event.dest_path)
 
             observer = Observer()
             handler = MusicHandler()
@@ -417,14 +451,13 @@ def main(page: ft.Page):
                     observer.schedule(handler, folder, recursive=True)
             
             observer.start()
-            print("👀 Watchdog запущен: слушаю папки на лету...")
+            print("[Watchdog] Watchdog запущен: слушаю папки на лету...")
             
         except ImportError:
-            print("⚠️ Ошибка: библиотека watchdog не установлена!")
+            print("[Error] Ошибка: библиотека watchdog не установлена!")
 
     # Сначала прогоняем старый быстрый скан 
-    # (чтобы подхватить то, что скачали, пока плеер был закрыт)
-    threading.Thread(target=scan_library, daemon=True).start()
+    page.run_task(scan_library_async)
     
     # А затем врубаем вечного наблюдателя за папками
     threading.Thread(target=start_watchdogs, daemon=True).start()
@@ -1328,12 +1361,10 @@ def main(page: ft.Page):
             else: show_snackbar("Файл не найден. Проверьте путь.")
         
         async def open_file_dialog(_):
-            # Создаем экземпляр и сразу вызываем асинхронный метод
-            files = await ft.FilePicker().pick_files(
+            files = await pick_files_async(
                 dialog_title="Выберите изображение для обложки",
                 allowed_extensions=["jpg", "jpeg", "png", "gif", "bmp", "webp"]
             )
-            # Если пользователь выбрал файл
             if files and files[0]:
                 cover_path_field.value = files[0].path
                 cover_path_field.update()
@@ -1616,38 +1647,22 @@ def main(page: ft.Page):
 
         playlists_container.controls.append(ft.Divider(color="white10", height=1))
 
-        # --- ОБЫЧНЫЕ ПЛЕЙЛИСТЫ (ТВОЙ СТАРЫЙ КОД) ---
+        # --- ОБЫЧНЫЕ ПЛЕЙЛИСТЫ ---
         if user_playlists:
+            from ui.playlist_menu import PlaylistMenu
             for pl_name in sorted(user_playlists.keys()):
                 track_count = len(user_playlists[pl_name]["tracks"])
                 cover = user_playlists[pl_name].get("cover")
                 
-                if cover and os.path.exists(cover):
-                    leading_widget = ft.Image(src=cover, width=32, height=32, border_radius=4, fit="cover")
-                else:
-                    leading_widget = ft.Icon(ft.Icons.PLAYLIST_PLAY, size=18)
-                
                 playlists_container.controls.append(
-                    ft.Container(
-                        content=ft.Row([
-                            leading_widget,
-                            ft.Column([
-                                ft.Text(pl_name, size=13, max_lines=1, overflow="ellipsis"),
-                                ft.Text(f"{track_count} треков", size=10, color="grey")
-                            ], spacing=0, expand=True),
-                            ft.PopupMenuButton(
-                                icon=ft.Icons.MORE_VERT, icon_size=14,
-                                items=[
-                                    ft.PopupMenuItem(content="Переименовать", on_click=lambda _, name=pl_name: rename_playlist(name)),
-                                    ft.PopupMenuItem(content="Обложка", on_click=lambda _, name=pl_name: change_playlist_cover(name)),
-                                    ft.PopupMenuItem(content="Удалить", on_click=lambda _, name=pl_name: delete_playlist(name)),
-                                ]
-                            )
-                        ], spacing=8, vertical_alignment="center"),
-                        padding=10,
-                        border_radius=8,
-                        on_click=lambda _, name=pl_name: load_playlist(name),
-                        on_hover=lambda e: setattr(e.control, "bgcolor", "white10" if e.data == "true" else None) or e.control.update()
+                    PlaylistMenu(
+                        pl_name=pl_name,
+                        track_count=track_count,
+                        cover_path=cover,
+                        on_load=load_playlist,
+                        on_rename=rename_playlist,
+                        on_cover=change_playlist_cover,
+                        on_delete=delete_playlist
                     )
                 )
         else:
@@ -2032,10 +2047,7 @@ def main(page: ft.Page):
     eq_reset_btn = ft.TextButton("Сбросить", icon=ft.Icons.REFRESH, icon_color="red400", on_click=reset_eq, disabled=not settings["equalizer_enabled"])
 
     async def add_music_folder(_=None):
-        # 1. Сразу вызываем системное окно выбора папки
-        path = await ft.FilePicker().get_directory_path(
-            dialog_title="Выберите папку с музыкой"
-        )
+        path = await get_directory_path_async(dialog_title="Выберите папку с музыкой")
         
         # 2. Если пользователь выбрал путь (не нажал "Отмена")
         if path:
@@ -4274,10 +4286,7 @@ def main(page: ft.Page):
     )
 
     async def open_first_run_folder(_):
-        # Вызываем асинхронное окно выбора папки
-        path = await ft.FilePicker().get_directory_path(
-            dialog_title="Выберите папку с вашей музыкой"
-        )
+        path = await get_directory_path_async(dialog_title="Выберите папку с вашей музыкой")
         
         # Если пользователь не нажал "Отмена" и выбрал путь
         if path:
