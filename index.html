@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audaci | Умный аудиоплеер с AI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-dark: #050505;
+            --surface: #111111;
+            --surface-glass: rgba(17, 17, 17, 0.6);
+            --text-main: #ffffff;
+            --text-muted: #888888;
+            --accent-purple: #9d50bb;
+            --accent-green: #6e48aa; /* Changed to a purple-ish mix for better harmony */
+            --brand-color: #1DB954;
+            --glow-color: rgba(29, 185, 84, 0.2);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Outfit', sans-serif;
+            overflow-x: hidden;
+            line-height: 1.6;
+        }
+
+        /* Dynamic Background Glows */
+        .bg-glow {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .glow-1 {
+            position: absolute;
+            top: -10%;
+            right: -10%;
+            width: 50vw;
+            height: 50vw;
+            background: radial-gradient(circle, rgba(157, 80, 187, 0.15) 0%, transparent 70%);
+            filter: blur(80px);
+        }
+
+        .glow-2 {
+            position: absolute;
+            bottom: -10%;
+            left: -10%;
+            width: 40vw;
+            height: 40vw;
+            background: radial-gradient(circle, rgba(29, 185, 84, 0.1) 0%, transparent 70%);
+            filter: blur(80px);
+        }
+
+        /* Glass Header */
+        header {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 8%;
+            background: var(--surface-glass);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-weight: 800;
+            font-size: 1.6rem;
+            letter-spacing: -1px;
+            color: var(--text-main);
+            text-decoration: none;
+        }
+
+        .brand img {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            object-fit: cover;
+        }
+
+        /* Hero Section */
+        .hero {
+            position: relative;
+            padding: 180px 8% 100px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .badge {
+            background: rgba(29, 185, 84, 0.1);
+            color: var(--brand-color);
+            padding: 8px 20px;
+            border-radius: 100px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 25px;
+            border: 1px solid rgba(29, 185, 84, 0.2);
+            animation: fadeInDown 0.8s ease-out;
+        }
+
+        h1 {
+            font-size: clamp(3.5rem, 8vw, 6.5rem);
+            font-weight: 800;
+            line-height: 0.95;
+            margin-bottom: 30px;
+            letter-spacing: -3px;
+            animation: fadeInUp 0.8s ease-out;
+        }
+
+        .text-gradient {
+            background: linear-gradient(135deg, #ffffff 0%, #888888 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .accent-gradient {
+            background: linear-gradient(135deg, #1DB954 0%, #19e68c 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            font-size: clamp(1.1rem, 2.5vw, 1.4rem);
+            color: var(--text-muted);
+            max-width: 700px;
+            margin-bottom: 50px;
+            animation: fadeInUp 1s ease-out;
+        }
+
+        /* Premium Download Panel */
+        .download-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            padding: 12px;
+            border-radius: 100px;
+            display: inline-flex;
+            align-items: center;
+            gap: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
+            margin-bottom: 80px;
+            animation: fadeInUp 1.2s ease-out;
+        }
+
+        select {
+            appearance: none;
+            background: transparent;
+            color: var(--text-main);
+            border: none;
+            padding: 12px 45px 12px 25px;
+            font-size: 1.05rem;
+            font-weight: 600;
+            outline: none;
+            cursor: pointer;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='white' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 20px center;
+            border-radius: 50px;
+            transition: background 0.3s;
+        }
+
+        select:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .btn-download {
+            background: var(--brand-color);
+            color: #000;
+            border: none;
+            padding: 16px 40px;
+            border-radius: 50px;
+            font-size: 1.05rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+
+        .btn-download:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 15px 30px rgba(29, 185, 84, 0.4);
+            background: #1ed760;
+        }
+
+        /* Mockup Container */
+        .mockup-container {
+            width: 100%;
+            max-width: 1100px;
+            margin: 0 auto 150px;
+            perspective: 1000px;
+            animation: fadeInUp 1.4s ease-out;
+        }
+
+        .main-mockup {
+            width: 100%;
+            border-radius: 24px;
+            box-shadow: 0 50px 100px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.1);
+            transform: rotateX(5deg);
+            transition: transform 0.5s ease;
+        }
+
+        .main-mockup:hover {
+            transform: rotateX(0deg);
+        }
+
+        /* Features Section */
+        .section-title {
+            text-align: center;
+            margin-bottom: 80px;
+        }
+
+        .section-title h2 {
+            font-size: 3rem;
+            font-weight: 800;
+            letter-spacing: -1.5px;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 40px;
+            padding: 0 8% 150px;
+            max-width: 1300px;
+            margin: 0 auto;
+        }
+
+        .feature-card {
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%);
+            padding: 50px 40px;
+            border-radius: 32px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.4s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-15px);
+            border-color: rgba(29, 185, 84, 0.3);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .feature-icon {
+            width: 60px;
+            height: 60px;
+            background: rgba(29, 185, 84, 0.1);
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            margin-bottom: 30px;
+            color: var(--brand-color);
+        }
+
+        .feature-card h3 {
+            font-size: 1.6rem;
+            margin-bottom: 15px;
+            font-weight: 700;
+        }
+
+        .feature-card p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            line-height: 1.7;
+        }
+
+        /* === ROADMAP === */
+        .roadmap-section {
+            padding: 0 8% 150px;
+        }
+
+        .section-subtitle {
+            font-size: 1.15rem;
+            color: var(--text-muted);
+            margin-top: 15px;
+        }
+
+        .roadmap-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            max-width: 1300px;
+            margin: 0 auto;
+        }
+
+        .roadmap-card {
+            padding: 40px 35px;
+            border-radius: 28px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            position: relative;
+            transition: all 0.4s ease;
+            overflow: hidden;
+        }
+
+        .roadmap-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            border-radius: 28px 28px 0 0;
+        }
+
+        .roadmap-card.done {
+            background: linear-gradient(180deg, rgba(29, 185, 84, 0.07) 0%, transparent 100%);
+        }
+
+        .roadmap-card.done::before {
+            background: linear-gradient(to right, #1DB954, #19e68c);
+        }
+
+        .roadmap-card.inprogress {
+            background: linear-gradient(180deg, rgba(251, 191, 36, 0.07) 0%, transparent 100%);
+        }
+
+        .roadmap-card.inprogress::before {
+            background: linear-gradient(to right, #f59e0b, #fbbf24);
+        }
+
+        .roadmap-card.planned {
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%);
+        }
+
+        .roadmap-card.planned::before {
+            background: linear-gradient(to right, #555, #888);
+        }
+
+        .roadmap-card:hover {
+            transform: translateY(-8px);
+            border-color: rgba(255, 255, 255, 0.12);
+        }
+
+        .roadmap-status {
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 20px;
+            color: var(--text-muted);
+        }
+
+        .roadmap-card.done .roadmap-status { color: #1DB954; }
+        .roadmap-card.inprogress .roadmap-status { color: #fbbf24; }
+
+        .roadmap-icon {
+            font-size: 2.2rem;
+            margin-bottom: 18px;
+        }
+
+        .roadmap-card h3 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .roadmap-card p {
+            color: var(--text-muted);
+            font-size: 1rem;
+            line-height: 1.7;
+        }
+
+        /* Footer */
+        footer {
+            padding: 80px 8% 40px;
+            background: #000;
+            text-align: center;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .footer-logo {
+            font-weight: 800;
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            display: block;
+        }
+
+        .copyright {
+            color: #555;
+            font-size: 0.95rem;
+        }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .download-panel {
+                flex-direction: column;
+                border-radius: 24px;
+                padding: 20px;
+                width: 100%;
+                max-width: 400px;
+            }
+
+            select {
+                width: 100%;
+                text-align: center;
+                background-position: right 30% center;
+            }
+
+            .btn-download {
+                width: 100%;
+                justify-content: center;
+            }
+
+            h1 {
+                font-size: 3.5rem;
+            }
+
+            .about-stats {
+                flex-direction: column;
+                gap: 30px;
+            }
+
+            .stat-divider {
+                width: 60px;
+                height: 1px;
+            }
+
+            .about-title {
+                font-size: 2.5rem;
+            }
+        }
+
+        /* === О НАС === */
+        .about-section {
+            padding: 80px 8% 150px;
+            text-align: center;
+        }
+
+        .about-inner {
+            max-width: 900px;
+            margin: 0 auto;
+            background: linear-gradient(135deg, rgba(29, 185, 84, 0.05) 0%, rgba(157, 80, 187, 0.05) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 40px;
+            padding: 80px 60px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .about-inner::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at center, rgba(29, 185, 84, 0.04) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        .about-badge {
+            display: inline-block;
+            background: rgba(29, 185, 84, 0.1);
+            color: var(--brand-color);
+            padding: 8px 22px;
+            border-radius: 100px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 30px;
+            border: 1px solid rgba(29, 185, 84, 0.2);
+        }
+
+        .about-title {
+            font-size: 3.2rem;
+            font-weight: 800;
+            letter-spacing: -2px;
+            line-height: 1.05;
+            margin-bottom: 25px;
+        }
+
+        .about-desc {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+            line-height: 1.8;
+            max-width: 680px;
+            margin: 0 auto 60px;
+        }
+
+        .about-stats {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 50px;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stat-number {
+            font-size: 3rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #1DB954, #19e68c);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -2px;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-divider {
+            width: 1px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="bg-glow">
+        <div class="glow-1"></div>
+        <div class="glow-2"></div>
+    </div>
+
+    <header>
+        <a href="#" class="brand">
+            <img src="assets/icon.png" alt="Audaci Logo">
+            Audaci
+        </a>
+        <div class="nav-links">
+            <!-- Navigation links can be added here -->
+        </div>
+    </header>
+
+    <main>
+        <section class="hero">
+            <div class="badge">Version 2.0 is here</div>
+            <h1><span class="text-gradient">Твоя музыка.</span><br><span class="accent-gradient">Твой AI Диджей.</span></h1>
+            <p class="subtitle">Интеллектуальный аудиоплеер с голосовым управлением, умным подбором музыки под настроение и полной поддержкой Linux, Windows и macOS.</p>
+
+            <div class="download-panel">
+                <select id="os-selector">
+                    <option value="linux">🐧 Linux (.deb)</option>
+                    <option value="windows">🪟 Windows (.exe)</option>
+                    <option value="macos">🍎 macOS (.dmg)</option>
+                </select>
+
+                <button class="btn-download" id="download-btn">
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+                    </svg>
+                    Скачать бесплатно
+                </button>
+            </div>
+
+            <div class="mockup-container">
+                <img src="audaci-main_view.png" alt="Audaci Desktop Interface" class="main-mockup">
+            </div>
+        </section>
+
+        <section class="features-section">
+            <div class="section-title">
+                <h2>Почему Audaci?</h2>
+            </div>
+            <div class="features">
+                <div class="feature-card">
+                    <div class="feature-icon">🧠</div>
+                    <h3>AI Диджей</h3>
+                    <p>Просто напиши "грустное" или "энергичное", и наш ИИ мгновенно соберет идеальный плейлист из твоей локальной библиотеки.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🎤</div>
+                    <h3>Голосовое управление</h3>
+                    <p>Полный контроль без рук. Попроси включить любимый альбом или переключить трек одной фразой.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <h3>Кроссплатформенность</h3>
+                    <p>Оптимизировано для Astra Linux, Windows и macOS. Нативные уведомления и минимальное потребление ресурсов.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📱</div>
+                    <h3>Telegram-бот</h3>
+                    <p>Загружай треки и управляй плеером прямо из Telegram. Мобильный интерфейс в одном нажатии.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="features-section">
+            <div class="section-title">
+                <h2>Интерфейс будущего</h2>
+            </div>
+            <div class="features">
+                <img src="screen2.png" alt="Mobile Interface" style="width: 100%; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1);">
+                <img src="screen3.png" alt="AI Interface" style="width: 100%; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1);">
+            </div>
+        </section>
+
+        <section id="about" class="about-section">
+            <div class="about-inner">
+                <div class="about-badge">О нас</div>
+                <h2 class="about-title">Создано с заботой<br>о музыке и людях</h2>
+                <p class="about-desc">Audaci — это дипломный проект, созданный студентом для решения реальной задачи: сделать слушание музыки умным и приятным. Мы верим, что плеер должен понимать твоё настроение — не только хранить файлы.</p>
+                <div class="about-stats">
+                    <div class="stat-item">
+                        <span class="stat-number">3</span>
+                        <span class="stat-label">Платформы</span>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat-item">
+                        <span class="stat-number">AI</span>
+                        <span class="stat-label">Рекомендации</span>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat-item">
+                        <span class="stat-number">∞</span>
+                        <span class="stat-label">Треков</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="roadmap" class="roadmap-section">
+            <div class="section-title">
+                <h2>Планы на будущее</h2>
+                <p class="section-subtitle">Audaci — живой проект. Вот куда мы движемся.</p>
+            </div>
+            <div class="roadmap-grid">
+                <div class="roadmap-card done">
+                    <div class="roadmap-status">✅ Готово</div>
+                    <div class="roadmap-icon">🎵</div>
+                    <h3>Базовый плеер</h3>
+                    <p>Воспроизведение, очередь, shuffle, repeat, поиск по медиатеке и системный трей.</p>
+                </div>
+                <div class="roadmap-card done">
+                    <div class="roadmap-status">✅ Готово</div>
+                    <div class="roadmap-icon">🧠</div>
+                    <h3>AI-рекомендации</h3>
+                    <p>Умный подбор треков по настроению и голосовое управление через Vosk.</p>
+                </div>
+                <div class="roadmap-card inprogress">
+                    <div class="roadmap-status">🚧 В разработке</div>
+                    <div class="roadmap-icon">✈️</div>
+                    <h3>Полная интеграция Telegram</h3>
+                    <p>Загрузка треков, синхронизация плейлистов и полноценное управление плеером прямо из Telegram Bot.</p>
+                </div>
+                <div class="roadmap-card planned">
+                    <div class="roadmap-status">📅 Запланировано</div>
+                    <div class="roadmap-icon">📱</div>
+                    <h3>Мобильная версия</h3>
+                    <p>Нативное приложение для iOS и Android с синхронизацией с десктопом через облако.</p>
+                </div>
+                <div class="roadmap-card planned">
+                    <div class="roadmap-status">📅 Запланировано</div>
+                    <div class="roadmap-icon">☁️</div>
+                    <h3>Облачная синхронизация</h3>
+                    <p>Плейлисты, настройки и история прослушивания — везде и на всех устройствах.</p>
+                </div>
+                <div class="roadmap-card planned">
+                    <div class="roadmap-status">💡 Идея</div>
+                    <div class="roadmap-icon">🌐</div>
+                    <h3>Социальные функции</h3>
+                    <p>Делиться плейлистами с друзьями, видеть что слушают другие, создавать совместные очереди.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <span class="footer-logo">Audaci</span>
+        <p class="copyright">© 2026 Audaci Player. Разработано с любовью для меломанов.</p>
+    </footer>
+
+    <script>
+        // Smooth scroll for anchors
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+
+        // Download logic
+        document.getElementById('download-btn').addEventListener('click', function () {
+            const os = document.getElementById('os-selector').value;
+            let filename = '';
+
+            if (os === 'linux') {
+                filename = 'audaci';
+            } else if (os === 'windows') {
+                filename = 'audaci.exe';
+            } else if (os === 'macos') {
+                filename = 'audaci.dmg';
+            }
+
+            const link = document.createElement('a');
+            link.href = filename;
+            link.download = filename;
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+    </script>
+
+</body>
+
+</html>

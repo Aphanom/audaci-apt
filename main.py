@@ -84,6 +84,8 @@ import core.db as db
 from core.lyrics_handler import fetch_synced_lyrics, parse_lrc
 from core.nlu import analyze_intent
 from theme import AppColors
+from core.telegram_handler import AudaciBot
+from core.api_server import start_api
 
 class AppState:
     def __init__(self, settings):
@@ -138,21 +140,24 @@ def quit_app_full(icon=None, item=None):
         global_page.run_task(global_page.window.destroy)
 
 # Оборачиваем в try-except, чтобы отсутствие зависимостей не роняло плеер
-try:
-    import pystray
-    if os.path.exists(icon_path):
-        tray_img = Image.open(icon_path)
-        tray_icon = pystray.Icon(
-            "Audaci", 
-            tray_img, 
-            "Audaci Player", 
-            menu=pystray.Menu(
-                pystray.MenuItem("Развернуть", show_window, default=True),
-                pystray.MenuItem("Выход", quit_app_full)
+if not IS_MAC:
+    try:
+        import pystray
+        if os.path.exists(icon_path):
+            tray_img = Image.open(icon_path)
+            tray_icon = pystray.Icon(
+                "Audaci", 
+                tray_img, 
+                "Audaci Player", 
+                menu=pystray.Menu(
+                    pystray.MenuItem("Развернуть", show_window, default=True),
+                    pystray.MenuItem("Выход", quit_app_full)
+                )
             )
-        )
-except Exception as e:
-    print(f"[Audaci Tray] Трей не запущен: {e}")
+            # В некоторых ОС нужно запустить иконку, но pystray на Windows/Linux часто работает и так при создании объекта
+            # Если нужно будет явно запускать - добавим tray_icon.run_detached()
+    except Exception as e:
+        print(f"[Audaci Tray] Ошибка инициализации трея: {e}")
 
 def main(page: ft.Page):
     global global_page
@@ -183,22 +188,18 @@ def main(page: ft.Page):
             # Сразу берем настройку из словаря
             is_tray_enabled = settings.get("close_to_tray", True)
             print(f"[Audaci] Поймано событие CLOSE. Трей: {is_tray_enabled}")
-            
-            if is_tray_enabled:
+
+            if is_tray_enabled and tray_icon is not None:
                 try:
-                    # В Astra Fly лучше просто скрывать, без предварительного сворачивания,
-                    # чтобы избежать цикла RESTORE, который мы видели в логах.
                     page.window.visible = False
                     page.update()
-                    # Делаем иконку в трее видимой
                     tray_icon.visible = True
                     print("[Audaci] Окно скрыто, иконка в трее.")
                 except Exception as err:
-                    print(f"[Audaci Error] Ошибка скрытия: {err}")
+                    print(f"[Audaci Error] Ошибка скрытия в трей: {err}")
             else:
-                print("[Audaci] Настройка трея OFF. Выходим...")
-                tray_icon.stop()
-                global_page.run_task(global_page.window.destroy)
+                print("[Audaci] Трей недоступен или отключен. Завершаем работу...")
+                quit_app_full()
 
 
     # Привязываем только один, но правильный обработчик
@@ -407,6 +408,7 @@ def main(page: ft.Page):
             
             class MusicHandler(FileSystemEventHandler):
                 async def process_async(self, file_path):
+                    if not os.path.exists(file_path): return
                     audio_exts = (".mp3", ".flac", ".wav", ".m4a")
                     if file_path.lower().endswith(audio_exts):
                         if not db.get_track(file_path):
@@ -2074,8 +2076,7 @@ def main(page: ft.Page):
             show_snackbar(f"Папка добавлена: {os.path.basename(path)}")
             
             # 7. Запускаем фоновое сканирование новых треков
-            threading.Thread(target=scan_library, daemon=True).start()
-            
+            page.run_task(scan_library_async)
             # Обновляем страницу для применения изменений
             page.update()
 
@@ -3029,12 +3030,12 @@ def main(page: ft.Page):
     player_right_block = ft.Container(
         content=ft.Row([
             volume_icon,       
-            # Уменьшили ползунок громкости до 70px
-            ft.Slider(width=70, min=0, max=1.0, value=0.7, on_change=lambda e: audio.set_volume(int(e.control.value * 100))),
-            ft.Container(width=2),
+            # Расширили ползунок громкости до 140px
+            ft.Slider(width=140, min=0, max=1.0, value=0.7, on_change=lambda e: audio.set_volume(int(e.control.value * 100))),
+            ft.Container(width=5),
             karaoke_btn, queue_btn, focus_btn
         ], alignment=ft.MainAxisAlignment.END, spacing=0),
-        width=220, # <--- Сжали блок с 280 до 220 пикселей!
+        width=290, # <--- Вернули комфортную ширину блока
     )
 
     player_row_wide = ft.Row(
@@ -4311,9 +4312,7 @@ def main(page: ft.Page):
             path_history.clear()
             path_history.append(music_path_ref[0])
             load_folder(music_path_ref[0], add_to_history=False)
-
-            threading.Thread(target=scan_library, daemon=True).start()
-
+            page.run_task(scan_library_async)
             # Плавное растворение без фризов
             first_run_view.opacity = 0
             first_run_view.update()
@@ -4489,6 +4488,33 @@ def main(page: ft.Page):
     apply_theme(settings["theme_mode"], show_toast=False)
     load_folder(music_path_ref[0])
     update_playlist_sidebar() 
+
+    # --- ЗАПУСК ТЕЛЕГРАМ БОТА ---
+    def run_bot_async(music_dir):
+        try:
+            bot_instance = AudaciBot(music_dir)
+            asyncio.run(bot_instance.start())
+        except Exception as e:
+            print(f"[Audaci Bot] Ошибка запуска: {e}")
+
+    # Запускаем в отдельном потоке, чтобы не блокировать GUI
+    bot_thread = threading.Thread(
+        target=run_bot_async, 
+        args=(music_path_ref[0],), 
+        daemon=True
+    )
+    bot_thread.start()
+    print(f"[Audaci Bot] Бот запущен в фоновом режиме. Музыка: {music_path_ref[0]}")
+
+    # --- ЗАПУСК API СЕРВЕРА ---
+    def run_api():
+        try:
+            start_api(audio, state, port=8000)
+        except Exception as e:
+            print(f"[Audaci API] Ошибка запуска: {e}")
+
+    threading.Thread(target=run_api, daemon=True).start()
+    print(f"[Audaci API] Сервер запущен на http://0.0.0.0:8000")
 
 if tray_icon is not None:
     threading.Thread(target=tray_icon.run, daemon=True).start()

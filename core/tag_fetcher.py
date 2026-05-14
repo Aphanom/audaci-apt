@@ -13,7 +13,8 @@ def fetch_mood_from_web(artist, title):
         artist = artist.strip()
         title = title.strip()
         url = f"http://ws.audioscrobbler.com/2.0/?method=track.gettoptags&artist={artist}&track={title}&api_key={API_KEY}&format=json"
-        response = requests.get(url, timeout=3).json()
+        headers = {'User-Agent': 'AudaciPlayer/1.0'}
+        response = requests.get(url, headers=headers, timeout=3).json()
         
         if 'toptags' in response and 'tag' in response['toptags']:
             tags = [t['name'].lower() for t in response['toptags']['tag'][:7]]
@@ -31,8 +32,9 @@ async def fetch_mood_from_web_async(artist, title):
         artist = artist.strip()
         title = title.strip()
         url = f"http://ws.audioscrobbler.com/2.0/?method=track.gettoptags&artist={artist}&track={title}&api_key={API_KEY}&format=json"
+        headers = {'User-Agent': 'AudaciPlayer/1.0'}
         
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(headers=headers) as session:
             try:
                 async with session.get(url, timeout=aiohttp.ClientTimeout(total=3)) as response:
                     if response.status == 200:
