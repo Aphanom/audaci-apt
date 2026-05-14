@@ -4,13 +4,13 @@ on:
   workflow_dispatch:
 
 env:
-  PYTHON_VERSION: "3.12" # Обновлено до 3.12, так как Flet на macOS использует этот рантайм
+  PYTHON_VERSION: "3.12"
   VOSK_MODEL_URL: "https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip"
   VOSK_MODEL_DIR: "vosk-model-small-ru-0.22"
 
 jobs:
   # ──────────────────────────────────────────────
-  #  Windows — сборка через Flet (Flutter backend)
+  #  Windows
   # ──────────────────────────────────────────────
   build-windows:
     runs-on: windows-latest
@@ -33,14 +33,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Кэш модели Vosk
+      - name: Модель Vosk
         id: vosk-cache
         uses: actions/cache@v4
         with:
           path: model
           key: vosk-model-small-ru-0.22
 
-      - name: Скачивание языковой модели Vosk
+      - name: Скачивание модели
         if: steps.vosk-cache.outputs.cache-hit != 'true'
         run: |
           curl -L -o model.zip "${{ env.VOSK_MODEL_URL }}"
@@ -48,18 +48,16 @@ jobs:
           mv "${{ env.VOSK_MODEL_DIR }}" model
           rm model.zip
 
-      - name: Установка Flutter (требуется для flet build)
+      - name: Установка Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: "stable"
           cache: true
 
-      - name: Сборка Windows EXE через Flet
-        env:
-          PYTHONIOENCODING: utf-8
+      - name: Сборка EXE
         run: flet build windows --product "Audaci" --no-rich-output
 
-      - name: Сохранение результата (Windows)
+      - name: Артефакт
         uses: actions/upload-artifact@v4
         with:
           name: Audaci-Windows
@@ -67,7 +65,7 @@ jobs:
           retention-days: 14
 
   # ──────────────────────────────────────────────
-  #  macOS — сборка через Flet (Flutter backend)
+  #  macOS
   # ──────────────────────────────────────────────
   build-macos:
     runs-on: macos-latest
@@ -89,15 +87,16 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install delocate  # Инструмент для фикса путей dylib
 
-      - name: Кэш модели Vosk
+      - name: Модель Vosk
         id: vosk-cache
         uses: actions/cache@v4
         with:
           path: model
           key: vosk-model-small-ru-0.22
 
-      - name: Скачивание языковой модели Vosk
+      - name: Скачивание модели
         if: steps.vosk-cache.outputs.cache-hit != 'true'
         run: |
           curl -L -o model.zip "${{ env.VOSK_MODEL_URL }}"
@@ -105,28 +104,23 @@ jobs:
           mv "${{ env.VOSK_MODEL_DIR }}" model
           rm model.zip
 
-      - name: Установка Flutter (требуется для flet build)
+      - name: Установка Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: "stable"
           cache: true
 
-      - name: Сборка macOS APP через Flet
-        env:
-          PYTHONIOENCODING: utf-8
+      - name: Сборка macOS APP
         run: |
-          # Исправление для Pillow (скрытые папки .dylibs не копируются автоматически)
+          # ФИКС PILLOW: delocate вшивает зависимости внутрь .so файлов,
+          # избавляя от проблемы с отсутствующей скрытой папкой .dylibs
           PIL_PATH=$(python -c 'import PIL; print(PIL.__path__[0])')
-          if [ -d "$PIL_PATH/.dylibs" ]; then
-            echo "Fixing Pillow dylibs: copying .dylibs to a non-hidden folder"
-            cp -r "$PIL_PATH/.dylibs" "$PIL_PATH/dylibs"
-            # Прописываем путь для загрузчика
-            find "$PIL_PATH" -name "_imaging.cpython-*.so" -exec install_name_tool -change "@loader_path/.dylibs/libtiff.6.dylib" "@loader_path/dylibs/libtiff.6.dylib" {} +
-          fi
-
+          echo "Fixing Pillow at $PIL_PATH"
+          delocate-path -v "$PIL_PATH"
+          
           flet build macos --product "Audaci" --no-rich-output
 
-      - name: Сохранение результата (macOS)
+      - name: Артефакт
         uses: actions/upload-artifact@v4
         with:
           name: Audaci-macOS
@@ -134,7 +128,7 @@ jobs:
           retention-days: 14
 
   # ──────────────────────────────────────────────
-  #  Linux — сборка .deb пакета
+  #  Linux
   # ──────────────────────────────────────────────
   build-linux:
     runs-on: ubuntu-latest
@@ -152,34 +146,26 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: "pip"
 
-      - name: Установка системных зависимостей (GTK / audio)
+      - name: Системные зависимости
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            libgtk-3-dev \
-            libglib2.0-dev \
-            ninja-build \
-            cmake \
-            clang \
-            libvlc-dev \
-            vlc \
-            portaudio19-dev \
-            dpkg-dev \
-            fakeroot
+            libgtk-3-dev libglib2.0-dev ninja-build cmake clang \
+            libvlc-dev vlc portaudio19-dev dpkg-dev fakeroot
 
-      - name: Установка зависимостей Python
+      - name: Зависимости Python
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Кэш модели Vosk
+      - name: Модель Vosk
         id: vosk-cache
         uses: actions/cache@v4
         with:
           path: model
           key: vosk-model-small-ru-0.22
 
-      - name: Скачивание языковой модели Vosk
+      - name: Скачивание модели
         if: steps.vosk-cache.outputs.cache-hit != 'true'
         run: |
           curl -L -o model.zip "${{ env.VOSK_MODEL_URL }}"
@@ -187,15 +173,13 @@ jobs:
           mv "${{ env.VOSK_MODEL_DIR }}" model
           rm model.zip
 
-      - name: Установка Flutter (требуется для flet build)
+      - name: Установка Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: "stable"
           cache: true
 
-      - name: Сборка Linux-бандла через Flet
-        env:
-          PYTHONIOENCODING: utf-8
+      - name: Сборка Linux
         run: flet build linux --product "Audaci" --no-rich-output
 
       - name: Упаковка в .deb
@@ -203,49 +187,28 @@ jobs:
           APP_VERSION="1.0.0"
           ARCH="amd64"
           PKG_NAME="audaci_${APP_VERSION}_${ARCH}"
-          INSTALL_DIR="${PKG_NAME}/usr/local/lib/audaci"
-          BIN_DIR="${PKG_NAME}/usr/local/bin"
-          DESKTOP_DIR="${PKG_NAME}/usr/share/applications"
-
-          # Создаём структуру пакета
-          mkdir -p "$INSTALL_DIR" "$BIN_DIR" "$DESKTOP_DIR" "${PKG_NAME}/DEBIAN"
-
-          # Копируем собранный бандл
-          cp -r build/linux/. "$INSTALL_DIR/"
-
-          # Создаём симлинк на исполняемый файл
-          ln -sf "/usr/local/lib/audaci/audaci" "${BIN_DIR}/audaci"
-
-          # .desktop-файл для меню приложений
-          cat > "${DESKTOP_DIR}/audaci.desktop" <<EOF
+          mkdir -p "${PKG_NAME}/usr/local/lib/audaci" "${PKG_NAME}/usr/local/bin" "${PKG_NAME}/usr/share/applications" "${PKG_NAME}/DEBIAN"
+          cp -r build/linux/. "${PKG_NAME}/usr/local/lib/audaci/"
+          ln -sf "/usr/local/lib/audaci/audaci" "${PKG_NAME}/usr/local/bin/audaci"
+          cat > "${PKG_NAME}/usr/share/applications/audaci.desktop" <<EOF
           [Desktop Entry]
           Name=Audaci
-          Comment=Music player with voice control
           Exec=/usr/local/bin/audaci
           Icon=/usr/local/lib/audaci/data/flutter_assets/assets/icon.png
-          Terminal=false
           Type=Application
-          Categories=AudioVideo;Audio;Player;
+          Categories=Audio;Player;
           EOF
-
-          # control-файл пакета
           cat > "${PKG_NAME}/DEBIAN/control" <<EOF
           Package: audaci
           Version: ${APP_VERSION}
-          Section: sound
-          Priority: optional
           Architecture: ${ARCH}
           Depends: libgtk-3-0, libvlc5, vlc, portaudio19
-          Maintainer: Audaci Team <audaci@example.com>
+          Maintainer: Audaci Team
           Description: Audaci Music Player
-           A cross-platform music player with Vosk-based voice control,
-           playlist management, and Telegram remote control support.
           EOF
-
-          # Собираем .deb
           fakeroot dpkg-deb --build "$PKG_NAME"
 
-      - name: Сохранение .deb артефакта
+      - name: Артефакт
         uses: actions/upload-artifact@v4
         with:
           name: Audaci-Linux-deb
