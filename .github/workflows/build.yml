@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
 
 env:
-  PYTHON_VERSION: '3.12'  # Обновлено до 3.12, так как Flet на macOS использует этот рантайм
-  VOSK_MODEL_URL: 'https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip'
-  VOSK_MODEL_DIR: 'vosk-model-small-ru-0.22'
+  PYTHON_VERSION: "3.12" # Обновлено до 3.12, так как Flet на macOS использует этот рантайм
+  VOSK_MODEL_URL: "https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip"
+  VOSK_MODEL_DIR: "vosk-model-small-ru-0.22"
 
 jobs:
   # ──────────────────────────────────────────────
@@ -26,7 +26,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
+          cache: "pip"
 
       - name: Установка зависимостей
         run: |
@@ -51,7 +51,7 @@ jobs:
       - name: Установка Flutter (требуется для flet build)
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
+          channel: "stable"
           cache: true
 
       - name: Сборка Windows EXE через Flet
@@ -83,13 +83,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
+          cache: "pip"
 
       - name: Установка зависимостей
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install serious-python  # Дополнительно для корректной сборки бандла
 
       - name: Кэш модели Vosk
         id: vosk-cache
@@ -109,7 +108,7 @@ jobs:
       - name: Установка Flutter (требуется для flet build)
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
+          channel: "stable"
           cache: true
 
       - name: Сборка macOS APP через Flet
@@ -124,7 +123,7 @@ jobs:
             # Прописываем путь для загрузчика
             find "$PIL_PATH" -name "_imaging.cpython-*.so" -exec install_name_tool -change "@loader_path/.dylibs/libtiff.6.dylib" "@loader_path/dylibs/libtiff.6.dylib" {} +
           fi
-          
+
           flet build macos --product "Audaci" --no-rich-output
 
       - name: Сохранение результата (macOS)
@@ -151,7 +150,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
+          cache: "pip"
 
       - name: Установка системных зависимостей (GTK / audio)
         run: |
@@ -191,7 +190,7 @@ jobs:
       - name: Установка Flutter (требуется для flet build)
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
+          channel: "stable"
           cache: true
 
       - name: Сборка Linux-бандла через Flet
