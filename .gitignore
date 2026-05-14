@@ -29,3 +29,11 @@ build_deb/
 check_tags.py
 test_forgotten.py
 a.txt
+
+# Telegram
+.env
+.env.*
+*.session
+session.db
+Telegram Music/
+*.session-journal
