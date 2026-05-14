@@ -3,73 +3,242 @@ name: Cross-Platform Build
 on:
   workflow_dispatch:
 
+env:
+  PYTHON_VERSION: '3.11'
+  VOSK_MODEL_URL: 'https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip'
+  VOSK_MODEL_DIR: 'vosk-model-small-ru-0.22'
+
 jobs:
+  # ──────────────────────────────────────────────
+  #  Windows — сборка через Flet (Flutter backend)
+  # ──────────────────────────────────────────────
   build-windows:
     runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash   # единый shell для всех шагов
+
     steps:
       - name: Скачивание кода
         uses: actions/checkout@v4
 
-      - name: Установка Python
+      - name: Установка Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'            # кэшируем pip-зависимости между запусками
 
       - name: Установка зависимостей
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install flet
+          # flet уже прописан в requirements.txt; явная установка не нужна
+
+      - name: Кэш модели Vosk
+        id: vosk-cache
+        uses: actions/cache@v4
+        with:
+          path: model
+          key: vosk-model-small-ru-0.22
 
       - name: Скачивание языковой модели Vosk
-        shell: bash
+        if: steps.vosk-cache.outputs.cache-hit != 'true'
         run: |
-          curl -L -o model.zip https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip
+          curl -L -o model.zip "${{ env.VOSK_MODEL_URL }}"
           unzip -q model.zip
-          mv vosk-model-small-ru-0.22 model
+          mv "${{ env.VOSK_MODEL_DIR }}" model
           rm model.zip
+
+      - name: Установка Flutter (требуется для flet build)
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 'stable'
+          cache: true
 
       - name: Сборка Windows EXE через Flet
         env:
-          PYTHONIOENCODING: utf8
-        run: echo y | flet build windows --product "Audaci"
+          PYTHONIOENCODING: utf-8
+        run: flet build windows --product "Audaci" --no-rich-output
 
       - name: Сохранение результата (Windows)
         uses: actions/upload-artifact@v4
         with:
           name: Audaci-Windows
           path: build/windows/
+          retention-days: 14    # храним 2 недели вместо 90 дней по умолчанию
 
+  # ──────────────────────────────────────────────
+  #  macOS — сборка через Flet (Flutter backend)
+  # ──────────────────────────────────────────────
   build-macos:
     runs-on: macos-latest
+    defaults:
+      run:
+        shell: bash
+
     steps:
       - name: Скачивание кода
         uses: actions/checkout@v4
 
-      - name: Установка Python
+      - name: Установка Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
 
       - name: Установка зависимостей
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller
-          
+
+      - name: Кэш модели Vosk
+        id: vosk-cache
+        uses: actions/cache@v4
+        with:
+          path: model
+          key: vosk-model-small-ru-0.22
+
       - name: Скачивание языковой модели Vosk
-        shell: bash
+        if: steps.vosk-cache.outputs.cache-hit != 'true'
         run: |
-          curl -L -o model.zip https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip
+          curl -L -o model.zip "${{ env.VOSK_MODEL_URL }}"
           unzip -q model.zip
-          mv vosk-model-small-ru-0.22 model
+          mv "${{ env.VOSK_MODEL_DIR }}" model
           rm model.zip
 
-      - name: Сборка macOS APP через PyInstaller
-        run: pyinstaller --noconfirm audaci.spec
+      - name: Установка Flutter (требуется для flet build)
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 'stable'
+          cache: true
+
+      - name: Сборка macOS APP через Flet
+        env:
+          PYTHONIOENCODING: utf-8
+        run: flet build macos --product "Audaci" --no-rich-output
 
       - name: Сохранение результата (macOS)
         uses: actions/upload-artifact@v4
         with:
           name: Audaci-macOS
-          path: dist/
+          path: build/macos/
+          retention-days: 14
+
+  # ──────────────────────────────────────────────
+  #  Linux — сборка .deb пакета
+  # ──────────────────────────────────────────────
+  build-linux:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Скачивание кода
+        uses: actions/checkout@v4
+
+      - name: Установка Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Установка системных зависимостей (GTK / audio)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            libgtk-3-dev \
+            libglib2.0-dev \
+            ninja-build \
+            cmake \
+            clang \
+            libvlc-dev \
+            vlc \
+            portaudio19-dev \
+            dpkg-dev \
+            fakeroot
+
+      - name: Установка зависимостей Python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Кэш модели Vosk
+        id: vosk-cache
+        uses: actions/cache@v4
+        with:
+          path: model
+          key: vosk-model-small-ru-0.22
+
+      - name: Скачивание языковой модели Vosk
+        if: steps.vosk-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -L -o model.zip "${{ env.VOSK_MODEL_URL }}"
+          unzip -q model.zip
+          mv "${{ env.VOSK_MODEL_DIR }}" model
+          rm model.zip
+
+      - name: Установка Flutter (требуется для flet build)
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 'stable'
+          cache: true
+
+      - name: Сборка Linux-бандла через Flet
+        env:
+          PYTHONIOENCODING: utf-8
+        run: flet build linux --product "Audaci" --no-rich-output
+
+      - name: Упаковка в .deb
+        run: |
+          APP_VERSION="1.0.0"
+          ARCH="amd64"
+          PKG_NAME="audaci_${APP_VERSION}_${ARCH}"
+          INSTALL_DIR="${PKG_NAME}/usr/local/lib/audaci"
+          BIN_DIR="${PKG_NAME}/usr/local/bin"
+          DESKTOP_DIR="${PKG_NAME}/usr/share/applications"
+
+          # Создаём структуру пакета
+          mkdir -p "$INSTALL_DIR" "$BIN_DIR" "$DESKTOP_DIR" "${PKG_NAME}/DEBIAN"
+
+          # Копируем собранный бандл
+          cp -r build/linux/. "$INSTALL_DIR/"
+
+          # Создаём симлинк на исполняемый файл
+          ln -sf "/usr/local/lib/audaci/audaci" "${BIN_DIR}/audaci"
+
+          # .desktop-файл для меню приложений
+          cat > "${DESKTOP_DIR}/audaci.desktop" <<EOF
+          [Desktop Entry]
+          Name=Audaci
+          Comment=Music player with voice control
+          Exec=/usr/local/bin/audaci
+          Icon=/usr/local/lib/audaci/data/flutter_assets/assets/icon.png
+          Terminal=false
+          Type=Application
+          Categories=AudioVideo;Audio;Player;
+          EOF
+
+          # control-файл пакета
+          cat > "${PKG_NAME}/DEBIAN/control" <<EOF
+          Package: audaci
+          Version: ${APP_VERSION}
+          Section: sound
+          Priority: optional
+          Architecture: ${ARCH}
+          Depends: libgtk-3-0, libvlc5, vlc, portaudio19
+          Maintainer: Audaci Team <audaci@example.com>
+          Description: Audaci Music Player
+           A cross-platform music player with Vosk-based voice control,
+           playlist management, and Telegram remote control support.
+          EOF
+
+          # Собираем .deb
+          fakeroot dpkg-deb --build "$PKG_NAME"
+
+      - name: Сохранение .deb артефакта
+        uses: actions/upload-artifact@v4
+        with:
+          name: Audaci-Linux-deb
+          path: "*.deb"
+          retention-days: 14
