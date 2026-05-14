@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 env:
-  PYTHON_VERSION: '3.11'
+  PYTHON_VERSION: '3.12'  # Обновлено до 3.12, так как Flet на macOS использует этот рантайм
   VOSK_MODEL_URL: 'https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip'
   VOSK_MODEL_DIR: 'vosk-model-small-ru-0.22'
 
@@ -14,64 +14,6 @@ jobs:
   # ──────────────────────────────────────────────
   build-windows:
     runs-on: windows-latest
-    defaults:
-      run:
-        shell: bash   # единый shell для всех шагов
-
-    steps:
-      - name: Скачивание кода
-        uses: actions/checkout@v4
-
-      - name: Установка Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'            # кэшируем pip-зависимости между запусками
-
-      - name: Установка зависимостей
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          # flet уже прописан в requirements.txt; явная установка не нужна
-
-      - name: Кэш модели Vosk
-        id: vosk-cache
-        uses: actions/cache@v4
-        with:
-          path: model
-          key: vosk-model-small-ru-0.22
-
-      - name: Скачивание языковой модели Vosk
-        if: steps.vosk-cache.outputs.cache-hit != 'true'
-        run: |
-          curl -L -o model.zip "${{ env.VOSK_MODEL_URL }}"
-          unzip -q model.zip
-          mv "${{ env.VOSK_MODEL_DIR }}" model
-          rm model.zip
-
-      - name: Установка Flutter (требуется для flet build)
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
-          cache: true
-
-      - name: Сборка Windows EXE через Flet
-        env:
-          PYTHONIOENCODING: utf-8
-        run: flet build windows --product "Audaci" --no-rich-output
-
-      - name: Сохранение результата (Windows)
-        uses: actions/upload-artifact@v4
-        with:
-          name: Audaci-Windows
-          path: build/windows/
-          retention-days: 14    # храним 2 недели вместо 90 дней по умолчанию
-
-  # ──────────────────────────────────────────────
-  #  macOS — сборка через Flet (Flutter backend)
-  # ──────────────────────────────────────────────
-  build-macos:
-    runs-on: macos-latest
     defaults:
       run:
         shell: bash
@@ -112,10 +54,78 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Сборка Windows EXE через Flet
+        env:
+          PYTHONIOENCODING: utf-8
+        run: flet build windows --product "Audaci" --no-rich-output
+
+      - name: Сохранение результата (Windows)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Audaci-Windows
+          path: build/windows/
+          retention-days: 14
+
+  # ──────────────────────────────────────────────
+  #  macOS — сборка через Flet (Flutter backend)
+  # ──────────────────────────────────────────────
+  build-macos:
+    runs-on: macos-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Скачивание кода
+        uses: actions/checkout@v4
+
+      - name: Установка Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Установка зависимостей
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install serious-python  # Дополнительно для корректной сборки бандла
+
+      - name: Кэш модели Vosk
+        id: vosk-cache
+        uses: actions/cache@v4
+        with:
+          path: model
+          key: vosk-model-small-ru-0.22
+
+      - name: Скачивание языковой модели Vosk
+        if: steps.vosk-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -L -o model.zip "${{ env.VOSK_MODEL_URL }}"
+          unzip -q model.zip
+          mv "${{ env.VOSK_MODEL_DIR }}" model
+          rm model.zip
+
+      - name: Установка Flutter (требуется для flet build)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
       - name: Сборка macOS APP через Flet
         env:
           PYTHONIOENCODING: utf-8
-        run: flet build macos --product "Audaci" --no-rich-output
+        run: |
+          # Исправление для Pillow (скрытые папки .dylibs не копируются автоматически)
+          PIL_PATH=$(python -c 'import PIL; print(PIL.__path__[0])')
+          if [ -d "$PIL_PATH/.dylibs" ]; then
+            echo "Fixing Pillow dylibs: copying .dylibs to a non-hidden folder"
+            cp -r "$PIL_PATH/.dylibs" "$PIL_PATH/dylibs"
+            # Прописываем путь для загрузчика
+            find "$PIL_PATH" -name "_imaging.cpython-*.so" -exec install_name_tool -change "@loader_path/.dylibs/libtiff.6.dylib" "@loader_path/dylibs/libtiff.6.dylib" {} +
+          fi
+          
+          flet build macos --product "Audaci" --no-rich-output
 
       - name: Сохранение результата (macOS)
         uses: actions/upload-artifact@v4
