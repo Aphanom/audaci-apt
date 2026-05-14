@@ -117,30 +117,42 @@ jobs:
           # 1. Собираем приложение
           flet build macos --product "Audaci" --no-rich-output
           
-          # 2. Находим PIL внутри собранного бандла
-          # Путь обычно: build/macos/Audaci.app/Contents/Frameworks/serious_python_darwin.framework/Resources/python.bundle/Contents/Resources/site-packages/PIL
-          BUNDLE_PIL=$(find build/macos -name "PIL" -type d | head -n 1)
+          # 2. Находим все папки PIL внутри собранного бандла
+          # serious_python может иметь несколько копий или специфичную структуру
+          echo "Searching for PIL in the bundle..."
+          BUNDLE_PIL_DIRS=$(find build/macos -name "PIL" -type d)
           
-          if [ -n "$BUNDLE_PIL" ]; then
-            echo "Found bundled PIL at $BUNDLE_PIL"
+          if [ -z "$BUNDLE_PIL_DIRS" ]; then
+            echo "Warning: Could not find PIL inside build/macos"
+            exit 0
+          fi
+
+          # Получаем путь к PIL в системе (откуда будем брать dylibs)
+          RUNNER_PIL=$(python -c 'import PIL; print(PIL.__path__[0])')
+          echo "Runner PIL path: $RUNNER_PIL"
+
+          for BUNDLE_PIL in $BUNDLE_PIL_DIRS; do
+            echo "Processing bundled PIL at $BUNDLE_PIL"
             
-            # Получаем путь к PIL в системе (откуда будем брать dylibs)
-            RUNNER_PIL=$(python -c 'import PIL; print(PIL.__path__[0])')
-            
-            # Если папка .dylibs не попала в бандл (обычно так и бывает), копируем её принудительно
-            if [ ! -d "$BUNDLE_PIL/.dylibs" ] && [ -d "$RUNNER_PIL/.dylibs" ]; then
-              echo "Copying hidden .dylibs from runner to bundle..."
-              cp -r "$RUNNER_PIL/.dylibs" "$BUNDLE_PIL/"
+            # Копируем .dylibs принудительно, если их нет или они неполные
+            if [ -d "$RUNNER_PIL/.dylibs" ]; then
+              echo "Ensuring .dylibs are present in $BUNDLE_PIL"
+              mkdir -p "$BUNDLE_PIL/.dylibs"
+              cp -af "$RUNNER_PIL/.dylibs/"* "$BUNDLE_PIL/.dylibs/"
             fi
             
-            # Используем delocate, чтобы "пришить" библиотеки к бинарникам внутри бандла
-            # Это исправит пути @loader_path/.dylibs/...
-            echo "Fixing dylib links inside the bundle..."
-            pip install delocate
+            # Фиксим пути во всех .so файлах внутри PIL
+            echo "Fixing dylib links in $BUNDLE_PIL"
             delocate-path -v "$BUNDLE_PIL"
-          else
-            echo "Warning: Could not find PIL inside build/macos"
+          done
+
+          # 3. На всякий случай фиксим весь python.bundle, если найдем его
+          PYTHON_BUNDLE=$(find build/macos -name "python.bundle" -type d | head -n 1)
+          if [ -n "$PYTHON_BUNDLE" ]; then
+            echo "Found python.bundle at $PYTHON_BUNDLE. Running delocate on Resources..."
+            delocate-path -v "$PYTHON_BUNDLE/Contents/Resources"
           fi
+
 
       - name: Артефакт
         uses: actions/upload-artifact@v4
