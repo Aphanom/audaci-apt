@@ -55,6 +55,8 @@ jobs:
           cache: true
 
       - name: Сборка EXE
+        env:
+          PYTHONUTF8: 1
         run: flet build windows --product "Audaci" --no-rich-output
 
       - name: Артефакт
@@ -112,13 +114,33 @@ jobs:
 
       - name: Сборка macOS APP
         run: |
-          # ФИКС PILLOW: delocate вшивает зависимости внутрь .so файлов,
-          # избавляя от проблемы с отсутствующей скрытой папкой .dylibs
-          PIL_PATH=$(python -c 'import PIL; print(PIL.__path__[0])')
-          echo "Fixing Pillow at $PIL_PATH"
-          delocate-path -v "$PIL_PATH"
-          
+          # 1. Собираем приложение
           flet build macos --product "Audaci" --no-rich-output
+          
+          # 2. Находим PIL внутри собранного бандла
+          # Путь обычно: build/macos/Audaci.app/Contents/Frameworks/serious_python_darwin.framework/Resources/python.bundle/Contents/Resources/site-packages/PIL
+          BUNDLE_PIL=$(find build/macos -name "PIL" -type d | head -n 1)
+          
+          if [ -n "$BUNDLE_PIL" ]; then
+            echo "Found bundled PIL at $BUNDLE_PIL"
+            
+            # Получаем путь к PIL в системе (откуда будем брать dylibs)
+            RUNNER_PIL=$(python -c 'import PIL; print(PIL.__path__[0])')
+            
+            # Если папка .dylibs не попала в бандл (обычно так и бывает), копируем её принудительно
+            if [ ! -d "$BUNDLE_PIL/.dylibs" ] && [ -d "$RUNNER_PIL/.dylibs" ]; then
+              echo "Copying hidden .dylibs from runner to bundle..."
+              cp -r "$RUNNER_PIL/.dylibs" "$BUNDLE_PIL/"
+            fi
+            
+            # Используем delocate, чтобы "пришить" библиотеки к бинарникам внутри бандла
+            # Это исправит пути @loader_path/.dylibs/...
+            echo "Fixing dylib links inside the bundle..."
+            pip install delocate
+            delocate-path -v "$BUNDLE_PIL"
+          else
+            echo "Warning: Could not find PIL inside build/macos"
+          fi
 
       - name: Артефакт
         uses: actions/upload-artifact@v4
