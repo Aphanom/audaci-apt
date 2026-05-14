@@ -134,24 +134,25 @@ jobs:
           for BUNDLE_PIL in $BUNDLE_PIL_DIRS; do
             echo "Processing bundled PIL at $BUNDLE_PIL"
             
-            # Копируем .dylibs принудительно, если их нет или они неполные
+            # Копируем .dylibs принудительно
             if [ -d "$RUNNER_PIL/.dylibs" ]; then
               echo "Ensuring .dylibs are present in $BUNDLE_PIL"
               mkdir -p "$BUNDLE_PIL/.dylibs"
               cp -af "$RUNNER_PIL/.dylibs/"* "$BUNDLE_PIL/.dylibs/"
             fi
             
-            # Фиксим пути во всех .so файлах внутри PIL
+            # Фиксим пути в PIL
             echo "Fixing dylib links in $BUNDLE_PIL"
             delocate-path -v "$BUNDLE_PIL"
+
+            # Проверка, что libtiff на месте
+            if [ -f "$BUNDLE_PIL/.dylibs/libtiff.6.dylib" ]; then
+              echo "✅ libtiff.6.dylib successfully bundled in $BUNDLE_PIL"
+            else
+              echo "❌ Error: libtiff.6.dylib still missing in $BUNDLE_PIL!"
+            fi
           done
 
-          # 3. На всякий случай фиксим весь python.bundle, если найдем его
-          PYTHON_BUNDLE=$(find build/macos -name "python.bundle" -type d | head -n 1)
-          if [ -n "$PYTHON_BUNDLE" ]; then
-            echo "Found python.bundle at $PYTHON_BUNDLE. Running delocate on Resources..."
-            delocate-path -v "$PYTHON_BUNDLE/Contents/Resources"
-          fi
 
 
       - name: Артефакт
