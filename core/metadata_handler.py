@@ -6,8 +6,19 @@ from mutagen import File
 from pathlib import Path
 
 # Создаем скрытую папку для постоянного хранения обложек (чтобы не пропадали!)
-COVERS_DIR = os.path.expanduser("~/.audaci_covers")
-os.makedirs(COVERS_DIR, exist_ok=True)
+# Rule 5: Оперируй путями исключительно через модуль pathlib
+COVERS_DIR = Path.home() / ".audaci_covers"
+
+def ensure_covers_dir():
+    try:
+        COVERS_DIR.mkdir(parents=True, exist_ok=True)
+    except FileExistsError:
+        if not COVERS_DIR.is_dir():
+            print(f"Критическая ошибка: {COVERS_DIR} существует, но не является директорией!")
+    except Exception as e:
+        print(f"Ошибка при создании директории {COVERS_DIR}: {e}")
+
+ensure_covers_dir()
 
 # Оставляем кэш в памяти для скорости, чтобы плеер не читал файлы дважды за сессию
 _cover_cache: dict[str, str | None] = {}
@@ -21,10 +32,10 @@ def save_cover_optimized(image_bytes):
 
     # Генерируем уникальный MD5 хэш из самих байтов картинки
     image_hash = hashlib.md5(image_bytes).hexdigest()
-    cover_path = os.path.join(COVERS_DIR, f"{image_hash}.jpg")
+    cover_path = COVERS_DIR / f"{image_hash}.jpg"
 
     # Магия оптимизации: если файл с таким хэшем УЖЕ ЕСТЬ, мы его НЕ перезаписываем!
-    if not os.path.exists(cover_path):
+    if not cover_path.exists():
         try:
             with open(cover_path, "wb") as f:
                 f.write(image_bytes)
@@ -32,7 +43,7 @@ def save_cover_optimized(image_bytes):
             print(f"Ошибка сохранения обложки: {e}")
             return None
 
-    return cover_path
+    return str(cover_path)
 
 
 def get_track_info(file_path: str | Path) -> dict:
@@ -105,10 +116,10 @@ def show_track_notification(title, artist, cover_path):
     current_os = platform.system()
     
     # Фолбэк, если обложки нет
-    if not cover_path or not os.path.exists(cover_path):
-        cover_path = os.path.abspath("assets/icon.png") # Убедись, что путь верный
+    if not cover_path or not Path(cover_path).exists():
+        cover_path = str(Path("assets/icon.png").resolve()) # Убедись, что путь верный
     else:
-        cover_path = os.path.abspath(cover_path)
+        cover_path = str(Path(cover_path).resolve())
 
     try:
         if current_os == "Linux":

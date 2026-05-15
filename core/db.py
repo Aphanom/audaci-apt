@@ -3,12 +3,26 @@ import os
 import random
 import datetime
 
-# --- УМНЫЙ ПУТЬ К БАЗЕ ДАННЫХ ---
-USER_HOME = os.path.expanduser("~")
-APP_DIR = os.path.join(USER_HOME, ".audaci")
-os.makedirs(APP_DIR, exist_ok=True) # Создаем скрытую папку, если ее нет
+from pathlib import Path
 
-DB_PATH = os.path.join(APP_DIR, "audaci_library.db")
+# --- УМНЫЙ ПУТЬ К БАЗЕ ДАННЫХ ---
+# Rule 5: Оперируй путями исключительно через модуль pathlib
+APP_DIR = Path.home() / ".audaci"
+DB_PATH = APP_DIR / "audaci_library.db"
+
+def ensure_app_dir():
+    """Создает скрытую папку, если ее нет."""
+    try:
+        APP_DIR.mkdir(parents=True, exist_ok=True)
+    except FileExistsError:
+        # Если путь существует, но это не папка (например, файл .audaci)
+        if not APP_DIR.is_dir():
+            print(f"Критическая ошибка: {APP_DIR} существует, но не является директорией!")
+    except Exception as e:
+        print(f"Ошибка при создании директории {APP_DIR}: {e}")
+
+# Вызываем при импорте, но теперь это более безопасно
+ensure_app_dir()
 
 def get_connection():
     # Единая точка подключения для всего приложения

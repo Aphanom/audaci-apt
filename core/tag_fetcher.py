@@ -2,7 +2,10 @@ import requests
 import aiohttp
 import asyncio
 
-API_KEY = "d0f09e818ba58229da96d69c73328e39"
+import os
+
+API_KEY = os.getenv("LASTFM_API_KEY", "d0f09e818ba58229da96d69c73328e39")
+
 
 def fetch_mood_from_web(artist, title):
     """Запрашивает теги трека у Last.fm (синхронно)."""

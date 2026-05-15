@@ -13,10 +13,16 @@ import sys
 import platform
 import threading
 import asyncio
+from dotenv import load_dotenv
+
+# Загружаем переменные из .env файла
+load_dotenv()
+
 import time
 import random
 import json
 import io
+from pathlib import Path
 
 # Исправляем кодировку консоли для Windows, чтобы эмодзи не вызывали UnicodeEncodeError
 if platform.system() == "Windows":
@@ -244,8 +250,11 @@ def main(page: ft.Page):
     def load_settings():
         """Загружает настройки из файла."""
         default_music_path = get_default_music_path()
+        # Пользовательская папка для Telegram (Rule 5 + UX)
+        telegram_music_path = str(Path.home() / "Music" / "Audaci Telegram")
+        
         default_settings = {
-            "music_folders": [default_music_path],
+            "music_folders": [default_music_path, telegram_music_path],
             "theme_mode": "dark",
             "accent_color": "#1DB954",
             "audio_device": "default",
@@ -256,7 +265,9 @@ def main(page: ft.Page):
             "voice_trigger": "астра",
             "voice_feedback": True,
             "close_to_tray": True,
+            "telegram_token": "", 
         }
+
         
         if os.path.exists(SETTINGS_FILE):
             try:
@@ -4479,6 +4490,53 @@ def main(page: ft.Page):
         page.theme_mode = ft.ThemeMode.SYSTEM
     
     page.update() 
+
+    # --- ЗАПУСК ТЕЛЕГРАМ БОТА ---
+    async def on_telegram_download_complete(file_path: Path):
+        """Коллбэк: вызывается ботом после успешной загрузки файла."""
+        try:
+            # 1. Сканируем новый файл и добавляем в БД
+            from core.metadata_handler import get_track_info
+            track_info = get_track_info(file_path)
+            db.add_track_optimized(track_info)
+            
+            # 2. Уведомляем пользователя в UI
+            show_snackbar(f"📥 Telegram: {track_info['title']} добавлен в библиотеку!")
+            
+            # 3. Обновляем текущий вид (Живая синхронизация)
+            telegram_music_path = str(Path.home() / "Music" / "Audaci Telegram")
+            if music_path_ref[0] == telegram_music_path or music_path_ref[0] == "Все треки":
+                load_folder(music_path_ref[0])
+        except Exception as e:
+            print(f"[Audaci Bot] Ошибка синхронизации: {e}")
+
+    def run_bot_async(token, download_dir):
+        try:
+            bot_instance = AudaciBot(
+                token=token, 
+                app_dir=download_dir,
+                on_download_complete=on_telegram_download_complete
+            )
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(bot_instance.start())
+        except Exception as e:
+            print(f"[Audaci Bot] Ошибка запуска: {e}")
+
+    telegram_download_dir = Path.home() / "Music" / "Audaci Telegram"
+    bot_token = os.getenv("TELEGRAM_TOKEN", settings.get("telegram_token"))
+
+    if bot_token:
+        threading.Thread(
+            target=run_bot_async, 
+            args=(bot_token, telegram_download_dir), 
+            daemon=True
+        ).start()
+        print(f"[Audaci Bot] Бот запущен. Сохранение в: {telegram_download_dir}")
+    else:
+        print("[Audaci Bot] Пропуск запуска: Токен не найден.")
+
+    # --- ЗАПУСК API СЕРВЕРА ---
     
     sidebar.content.bgcolor = sidebar_bgcolor
     playlists_container.bgcolor = sidebar_bgcolor
@@ -4488,23 +4546,6 @@ def main(page: ft.Page):
     apply_theme(settings["theme_mode"], show_toast=False)
     load_folder(music_path_ref[0])
     update_playlist_sidebar() 
-
-    # --- ЗАПУСК ТЕЛЕГРАМ БОТА ---
-    def run_bot_async(music_dir):
-        try:
-            bot_instance = AudaciBot(music_dir)
-            asyncio.run(bot_instance.start())
-        except Exception as e:
-            print(f"[Audaci Bot] Ошибка запуска: {e}")
-
-    # Запускаем в отдельном потоке, чтобы не блокировать GUI
-    bot_thread = threading.Thread(
-        target=run_bot_async, 
-        args=(music_path_ref[0],), 
-        daemon=True
-    )
-    bot_thread.start()
-    print(f"[Audaci Bot] Бот запущен в фоновом режиме. Музыка: {music_path_ref[0]}")
 
     # --- ЗАПУСК API СЕРВЕРА ---
     def run_api():
