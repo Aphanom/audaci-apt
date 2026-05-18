@@ -1,3 +1,19 @@
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: Awaiting next milestone
+stopped_at: All Phase 1 requirements, automated tests, and UI/config bugfixes completed and verified.
+last_updated: "2026-05-18T20:53:14.216Z"
+last_activity: 2026-05-18 — Milestone v1.0 completed and archived
+progress:
+  total_phases: 2
+  completed_phases: 1
+  total_plans: 1
+  completed_plans: 1
+  percent: 50
+---
+
 # Project State
 
 ## Project Reference
@@ -9,18 +25,17 @@ See: .planning/PROJECT.md (updated 2026-05-18)
 
 ## Current Position
 
-Phase: 2 of 2 (UI Scalability & Telegram Bot Enhancements)
-Plan: 1 of 1 in current phase
-Status: Completed
-Last activity: 2026-05-18 — Successfully completed all UI scalability, Last.fm cover art fetching, bot reply keyboards, player online status, and client settings path migrations for Phase 2.
-
-Progress: [██████████] 100%
+Phase: Milestone v1.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-05-18 — Milestone v1.0 completed and archived
 
 ## Accumulated Context
 
 ### Decisions
 
 Recent decisions affecting current work:
+
 - Standardize all user configurations and state to `~/.audaci/` user folder.
 - Embed missing track covers directly via Last.fm Web API + Mutagen inside client background download process.
 - Explicitly lock player_right_block to 330px with expand=False in on_resize to prevent focus_btn clipping.
@@ -39,3 +54,7 @@ None.
 Last session: 2026-05-18 23:00
 Stopped at: All Phase 1 requirements, automated tests, and UI/config bugfixes completed and verified.
 Resume file: None
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone
