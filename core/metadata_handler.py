@@ -7,16 +7,22 @@ from pathlib import Path
 
 # Создаем скрытую папку для постоянного хранения обложек (чтобы не пропадали!)
 # Rule 5: Оперируй путями исключительно через модуль pathlib
-COVERS_DIR = Path.home() / ".audaci_covers"
+COVERS_DIR = Path(os.getenv("AUDACI_DB_DIR", str(Path.home() / ".audaci"))) / "covers"
 
 def ensure_covers_dir():
+    global COVERS_DIR
     try:
         COVERS_DIR.mkdir(parents=True, exist_ok=True)
-    except FileExistsError:
-        if not COVERS_DIR.is_dir():
-            print(f"Критическая ошибка: {COVERS_DIR} существует, но не является директорией!")
     except Exception as e:
         print(f"Ошибка при создании директории {COVERS_DIR}: {e}")
+        # Грациозный фолбэк в рабочую область проекта при ограничениях прав macOS (TCC)
+        fallback_dir = Path(__file__).resolve().parent.parent / "covers"
+        try:
+            fallback_dir.mkdir(parents=True, exist_ok=True)
+            COVERS_DIR = fallback_dir
+            print(f"[meta] Использование фолбэк-директории для обложек: {COVERS_DIR}")
+        except Exception as fe:
+            print(f"Критическая ошибка фолбэка обложек: {fe}")
 
 ensure_covers_dir()
 
@@ -92,12 +98,26 @@ def get_track_info(file_path: str | Path) -> dict:
 
     cover_data: bytes | None = None
     try:
-        if file_path.suffix.lower() == ".mp3":
-            if audio.tags:
-                apic = [v for k, v in audio.tags.items() if k.startswith("APIC")]
-                if apic:
-                    cover_data = apic[0].data
-        elif hasattr(audio, "pictures") and audio.pictures:
+        # 1. Попытка прочитать обложку как MP3 (ID3 APIC)
+        if audio.tags and hasattr(audio.tags, "items"):
+            apic = [v for k, v in audio.tags.items() if k.startswith("APIC")]
+            if apic:
+                cover_data = apic[0].data
+        
+        # 2. Попытка прочитать обложку как MP4/M4A (covr)
+        if not cover_data and audio.tags and "covr" in audio.tags:
+            covr = audio.tags["covr"]
+            if covr:
+                item = covr[0] if isinstance(covr, list) else covr
+                if isinstance(item, bytes):
+                    cover_data = item
+                elif hasattr(item, "data"):
+                    cover_data = item.data
+                else:
+                    cover_data = bytes(item)
+                    
+        # 3. Попытка прочитать обложку для FLAC и др. (pictures)
+        if not cover_data and hasattr(audio, "pictures") and audio.pictures:
             cover_data = audio.pictures[0].data
     except Exception as e:
         print(f"[meta] cover error: {e}")

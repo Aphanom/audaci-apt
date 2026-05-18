@@ -169,6 +169,34 @@ def main(page: ft.Page):
     global global_page
     global_page = page
 
+    # === Telegram Downloads symlink migration ===
+    try:
+        import shutil
+        music_tg_dir = Path.home() / "Music" / "Audaci Telegram"
+        audaci_tg_dir = Path.home() / ".audaci" / "Audaci Telegram"
+
+        audaci_tg_dir.mkdir(parents=True, exist_ok=True)
+
+        if music_tg_dir.exists() and not music_tg_dir.is_symlink():
+            try:
+                for item in music_tg_dir.iterdir():
+                    if item.is_file():
+                        dest = audaci_tg_dir / item.name
+                        if not dest.exists():
+                            shutil.move(str(item), str(dest))
+                music_tg_dir.rmdir()
+            except Exception as migration_err:
+                print(f"[Migration] Error moving old ~/Music/Audaci Telegram folder: {migration_err}")
+
+        if not music_tg_dir.exists() and not music_tg_dir.is_symlink():
+            try:
+                os.symlink(str(audaci_tg_dir), str(music_tg_dir))
+                print(f"[Migration] Successfully symlinked {music_tg_dir} -> {audaci_tg_dir}")
+            except Exception as symlink_err:
+                print(f"[Migration] Error symlinking: {symlink_err}")
+    except Exception as e:
+        print(f"[Migration] General error: {e}")
+
     page.title = "Audaci"
     if IS_WINDOWS:
         page.window.icon = "icon.ico"
@@ -178,6 +206,8 @@ def main(page: ft.Page):
         page.window.icon = "icon.png"
     page.window.prevent_close = True 
     page.update()
+
+    active_ai_dj = [None]
 
     def handle_window_events(e):
         import os
@@ -242,8 +272,49 @@ def main(page: ft.Page):
 
 
     # --- НАСТРОЙКИ ---
-    SETTINGS_FILE = os.path.expanduser("~/.audaci_settings.json")
-    PLAYLISTS_FILE = os.path.expanduser("~/.audaci_playlists.json")
+    # Relocate settings and playlists to ~/.audaci/ using pathlib (Rule 5) with seamless migration
+    old_settings = Path.home() / ".audaci_settings.json"
+    old_playlists = Path.home() / ".audaci_playlists.json"
+    
+    audaci_dir = Path.home() / ".audaci"
+    audaci_dir.mkdir(parents=True, exist_ok=True)
+    
+    if old_settings.exists() and not (audaci_dir / "settings.json").exists():
+        try:
+            import shutil
+            shutil.move(str(old_settings), str(audaci_dir / "settings.json"))
+        except Exception:
+            pass
+            
+    if old_playlists.exists() and not (audaci_dir / "playlists.json").exists():
+        try:
+            import shutil
+            shutil.move(str(old_playlists), str(audaci_dir / "playlists.json"))
+        except Exception:
+            pass
+
+    # Миграция старых папок Telegram-музыки в "~/.audaci/Audaci Telegram" (Rule 5 + UX)
+    old_tg_dir = Path.home() / ".audaci" / "telegram_music"
+    old_tg_dir_space = Path.home() / ".audaci" / "Telegram Music"
+    new_tg_dir = Path.home() / ".audaci" / "Audaci Telegram"
+    
+    new_tg_dir.mkdir(parents=True, exist_ok=True)
+    
+    for old_dir in [old_tg_dir, old_tg_dir_space]:
+        if old_dir.exists() and old_dir.is_dir() and old_dir != new_tg_dir:
+            try:
+                for item in old_dir.iterdir():
+                    if item.is_file():
+                        import shutil
+                        dest = new_tg_dir / item.name
+                        if not dest.exists():
+                            shutil.move(str(item), str(dest))
+                old_dir.rmdir()
+            except Exception:
+                pass
+
+    SETTINGS_FILE = str(audaci_dir / "settings.json")
+    PLAYLISTS_FILE = str(audaci_dir / "playlists.json")
 
     is_first_run = not os.path.exists(SETTINGS_FILE)
     
@@ -251,7 +322,7 @@ def main(page: ft.Page):
         """Загружает настройки из файла."""
         default_music_path = get_default_music_path()
         # Пользовательская папка для Telegram (Rule 5 + UX)
-        telegram_music_path = str(Path.home() / "Music" / "Audaci Telegram")
+        telegram_music_path = str(Path.home() / ".audaci" / "Audaci Telegram")
         
         default_settings = {
             "music_folders": [default_music_path, telegram_music_path],
@@ -273,6 +344,21 @@ def main(page: ft.Page):
             try:
                 with open(SETTINGS_FILE, 'r', encoding='utf-8') as f:
                     loaded = json.load(f)
+                    if "music_folders" in loaded and isinstance(loaded["music_folders"], list):
+                        cleaned_folders = []
+                        old_paths = [
+                            str(Path.home() / ".audaci" / "telegram_music"),
+                            str(Path.home() / ".audaci" / "Telegram Music")
+                        ]
+                        for folder in loaded["music_folders"]:
+                            if folder in old_paths:
+                                continue
+                            if folder not in cleaned_folders:
+                                cleaned_folders.append(folder)
+                        
+                        if telegram_music_path not in cleaned_folders:
+                            cleaned_folders.append(telegram_music_path)
+                        loaded["music_folders"] = cleaned_folders
                     default_settings.update(loaded)
             except Exception as e:
                 print(f"Ошибка загрузки настроек: {e}")
@@ -379,7 +465,8 @@ def main(page: ft.Page):
                 for file in files:
                     if file.lower().endswith(audio_exts):
                         full_path = os.path.join(root, file)
-                        if not db.get_track(full_path):
+                        track = db.get_track(full_path)
+                        if not track or not track.get("cover_path"):
                             scan_tasks.append((full_path, folder, file))
         
         async def process_single_track(full_path, folder, file_name):
@@ -884,6 +971,7 @@ def main(page: ft.Page):
             dialog_box.scale = 0.9
             dialog_box.opacity = 0
             overlay_container.opacity = 0
+            active_ai_dj[0] = None
             try:
                 page.update()
                 await asyncio.sleep(0.4) 
@@ -936,7 +1024,7 @@ def main(page: ft.Page):
                 ft.Divider(height=20, color=divider_color),
                 ft.Text("Ваше персональное настроение:", size=14, color=text_secondary, weight="bold"),
                 vibes_grid
-            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, scroll=ft.ScrollMode.AUTO), # <--- ВКЛЮЧИЛИ СКРОЛЛ ЗДЕСЬ
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
             height=0, opacity=0, clip_behavior=ft.ClipBehavior.HARD_EDGE,
             animate_size=ft.Animation(700, ft.AnimationCurve.EASE_OUT_QUINT),
             animate_opacity=ft.Animation(500, ft.AnimationCurve.EASE_OUT)
@@ -976,7 +1064,7 @@ def main(page: ft.Page):
                                 on_hover=create_hover_handler(chip_bg, text_primary)
                             )
                         )
-                vibes_section.height = 320
+                vibes_section.height = None
                 vibes_section.opacity = 1
             else:
                 vibes_section.height = 0
@@ -1080,27 +1168,45 @@ def main(page: ft.Page):
             padding=ft.Padding(0, 20, 0, 10)
         )
 
+        # --- Вычисляем адаптивные размеры ---
+        w = page.width if page.width else (page.window.width or 1050)
+        h = page.height if page.height else (page.window.height or 700)
+        dialog_width = min(550, w - 30)
+        dialog_height = min(680, h - 40)
+
         # --- Основной бокс окна ---
         dialog_box = ft.Container(
             content=ft.Column([
+                # Заголовок (Фиксированный)
                 ft.Row([
                     ft.Icon(ft.Icons.AUTO_AWESOME, color="#8A2BE2", size=36),
                     ft.Text("Audaci AI", size=34, weight="bold", color=text_primary)
                 ], alignment=ft.MainAxisAlignment.CENTER),
-                ft.Divider(height=20, color="transparent"),
-                wave_canvas,
-                prompt_field,
-                instructions,
-                vibes_section,
-                ft.Container(height=10),
+                ft.Divider(height=10, color="transparent"),
+                
+                # Прокручиваемый контент
+                ft.Container(
+                    content=ft.Column([
+                        wave_canvas,
+                        prompt_field,
+                        instructions,
+                        vibes_section,
+                    ], scroll=ft.ScrollMode.AUTO, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10),
+                    expand=True,
+                ),
+                
+                ft.Divider(height=10, color="transparent"),
+                
+                # Подвал с кнопками (Фиксированный)
                 ft.Row([
                     ft.TextButton("Мои настроения", icon=ft.Icons.WAVES_ROUNDED, icon_color="#FF4500", on_click=toggle_vibes),
                     ft.TextButton("Отмена", on_click=lambda _: page.run_task(close_ai_dj_with_anim)),
                     ft.FilledButton("Запустить", on_click=lambda _: page.run_task(submit_click), style=ft.ButtonStyle(bgcolor="#8A2BE2", color="white", padding=20))
                 ], alignment=ft.MainAxisAlignment.CENTER, spacing=15)
-            ], tight=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-            width=550,
-            padding=40,
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+            width=dialog_width,
+            height=dialog_height,
+            padding=ft.Padding(30, 25, 30, 25),
             bgcolor=bg_color, 
             border_radius=30,
             scale=0.8, 
@@ -1108,6 +1214,8 @@ def main(page: ft.Page):
             animate_scale=ft.Animation(600, ft.AnimationCurve.EASE_OUT_BACK),
             animate_opacity=ft.Animation(400, ft.AnimationCurve.EASE_OUT),
         )
+
+        active_ai_dj[0] = dialog_box
 
         # --- Оверлей-затемнитель на весь экран ---
         overlay_container = ft.Container(
@@ -2222,6 +2330,13 @@ def main(page: ft.Page):
             ft.Divider(height=15),
             ft.Button("➕ Добавить папку", on_click=add_music_folder, icon=ft.Icons.FOLDER_OPEN, color="#FFFFFF", bgcolor="#1DB954"),
             ft.Divider(height=30),
+            
+            ft.Text("🤖 Telegram Синхронизация", size=20, weight="bold", color="#FFFFFF"),
+            ft.Divider(height=10),
+            ft.Text("Синхронизируйте плеер с вашим Telegram-ботом, чтобы скачивать музыку прямо на плеер", size=12, color="white54"),
+            ft.Divider(height=15),
+            ft.Button("🔗 Настроить Telegram-бот", on_click=lambda _: show_telegram_settings(), icon=ft.Icons.QR_CODE_SCANNER, color="#FFFFFF", bgcolor="#0088cc"),
+            ft.Divider(height=30),
         ], scroll=ft.ScrollMode.ALWAYS, expand=True),
 
     ])
@@ -2607,8 +2722,83 @@ def main(page: ft.Page):
     sidebar_albums_tile = make_sidebar_btn(ft.Icons.ALBUM_ROUNDED, "Альбомы", lambda _: load_db_view("albums"))
     sidebar_search_tile = make_sidebar_btn(ft.Icons.SEARCH, "Поиск", lambda _: show_search_view())
     sidebar_history_tile = make_sidebar_btn(ft.Icons.HISTORY, "История", lambda _: load_db_view("history"))
+    sidebar_telegram_tile = make_sidebar_btn(ft.Icons.TELEGRAM, "Telegram", lambda _: (load_folder(str(Path.home() / ".audaci" / "Audaci Telegram")), show_home_view()))
     sidebar_settings_tile = make_sidebar_btn(ft.Icons.SETTINGS, "Настройки", lambda _: show_settings())
     
+    def show_telegram_settings():
+        import uuid
+        import urllib.parse
+        import requests
+        import asyncio
+
+        # Генерируем или получаем код синхронизации
+        sync_code = settings.get("telegram_sync_code")
+        if not sync_code or len(sync_code) < 30: # Migrate old codes to full UUIDv4
+            sync_code = f"SYNC-{uuid.uuid4().hex}"
+            settings["telegram_sync_code"] = sync_code
+            save_settings()
+
+        # Имя бота (получаем сохраненное имя, по умолчанию audaci_playerBot)
+        bot_username = settings.get("bot_username", "audaci_playerBot")
+        
+        def get_qr_url(username, code):
+            data = f"https://t.me/{username}?start={code}"
+            encoded_data = urllib.parse.quote(data)
+            return f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={encoded_data}"
+
+        bot_username_input = ft.TextField(
+            label="Имя вашего Telegram бота",
+            value=bot_username,
+            width=300,
+            text_size=12,
+            on_change=lambda e: update_qr(e.control.value)
+        )
+        
+        qr_image = ft.Image(src=get_qr_url(bot_username, sync_code), width=200, height=200)
+
+        def update_qr(new_bot_username):
+            new_bot_username = new_bot_username.strip().lstrip("@")
+            settings["bot_username"] = new_bot_username
+            save_settings()
+            qr_image.src = get_qr_url(new_bot_username, sync_code)
+            qr_image.update()
+
+        async def fetch_bot_info_async():
+            try:
+                server_url = settings.get("central_server_url", "http://localhost:8080")
+                # Выносим блокирующий HTTP-запрос в пул потоков через asyncio.to_thread
+                res = await asyncio.to_thread(requests.get, f"{server_url}/api/bot/info", timeout=1.5)
+                if res.status_code == 200:
+                    fetched_username = res.json().get("username")
+                    if fetched_username and fetched_username != settings.get("bot_username"):
+                        settings["bot_username"] = fetched_username
+                        save_settings()
+                        bot_username_input.value = fetched_username
+                        bot_username_input.update()
+                        qr_image.src = get_qr_url(fetched_username, sync_code)
+                        qr_image.update()
+            except Exception:
+                pass
+
+        dlg = ft.AlertDialog(
+            title=ft.Row([ft.Icon(ft.Icons.QR_CODE_SCANNER, color="#0088cc"), ft.Text("QR Синхронизация")], spacing=10),
+            content=ft.Column([
+                ft.Text("Отсканируйте этот QR-код, чтобы связать ваш Telegram с десктопным плеером Audaci.", size=14),
+                bot_username_input,
+                ft.Container(content=qr_image, alignment=ft.Alignment.CENTER, padding=10),
+                ft.Text(f"Или отправьте боту код вручную: {sync_code}", size=12, color="grey", selectable=True)
+            ], tight=True, spacing=10),
+            actions=[
+                ft.TextButton("Закрыть", on_click=lambda _: close_dialog(dlg)),
+            ],
+            actions_padding=10
+        )
+        page.overlay.append(dlg)
+        dlg.open = True
+        page.update()
+
+        # Запускаем асинхронный опрос в фоновом режиме
+        page.run_task(fetch_bot_info_async)
     library_header = ft.Container(
         content=ft.Row([ft.Icon(ft.Icons.LIBRARY_MUSIC, size=16, color="grey"), ft.Text("МОЯ МЕДИАТЕКА", size=11, weight="bold", color="grey", overflow="ellipsis", expand=True)], spacing=10),
         padding=ft.Padding(10, 5, 0, 10),
@@ -2623,6 +2813,7 @@ def main(page: ft.Page):
                 sidebar_albums_tile, 
                 sidebar_search_tile, 
                 sidebar_history_tile, 
+                sidebar_telegram_tile,
                 sidebar_settings_tile,
             ], spacing=2),
             bgcolor=sidebar_bgcolor, border_radius=10, padding=10,
@@ -2856,10 +3047,14 @@ def main(page: ft.Page):
 
     focus_extra_controls = ft.Row([focus_karaoke_btn, focus_queue_btn], alignment=ft.MainAxisAlignment.CENTER, spacing=20)
 
+    focus_spacer1 = ft.Container(height=30)
+    focus_spacer2 = ft.Container(height=20)
+    focus_spacer3 = ft.Container(height=10)
+
     # ФИКС 1: Добавили expand=True, чтобы колонка не сжималась
     focus_main_col = ft.Column([
-        focus_cover, ft.Container(height=30), focus_title, focus_artist, ft.Container(height=20), 
-        focus_controls, ft.Container(height=10), focus_extra_controls
+        focus_cover, focus_spacer1, focus_title, focus_artist, focus_spacer2, 
+        focus_controls, focus_spacer3, focus_extra_controls
     ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
 
     # ФИКС 2: Убрали width=0 и animate_size. Теперь используем visible=False
@@ -3046,7 +3241,7 @@ def main(page: ft.Page):
             ft.Container(width=5),
             karaoke_btn, queue_btn, focus_btn
         ], alignment=ft.MainAxisAlignment.END, spacing=0),
-        width=290, # <--- Вернули комфортную ширину блока
+        width=330, # <--- Увеличили до 330px, чтобы кнопки не срезались при запуске
     )
 
     player_row_wide = ft.Row(
@@ -3799,6 +3994,8 @@ def main(page: ft.Page):
 
         back_button.visible = len(path_history) > 1
         current_folder_text.value = os.path.basename(path) if path != music_path_ref[0] else "Главная"
+        telegram_settings_btn.visible = "Audaci Telegram" in path
+        telegram_settings_btn.update()
 
         is_light = is_app_light_mode[0]
         sidebar.content.bgcolor = "#FFFFFF" if is_light else "#121212"
@@ -4044,6 +4241,13 @@ def main(page: ft.Page):
         scroll=ft.ScrollMode.ALWAYS # Создает жесткий Viewport, который не "отваливается"
     )
     current_folder_text = ft.Text("Твоя музыка", size=20, weight="bold", color="grey")
+    telegram_settings_btn = ft.IconButton(
+        icon=ft.Icons.QR_CODE_SCANNER,
+        icon_color="#1DB954",
+        tooltip="Настройка QR-синхронизации",
+        visible=False,
+        on_click=lambda _: show_telegram_settings()
+    )
     
     greeting_text = ft.Text("Добрый день", size=32, weight="bold", expand=True, no_wrap=True, overflow=ft.TextOverflow.ELLIPSIS)
 
@@ -4146,7 +4350,7 @@ def main(page: ft.Page):
         # Встроили нашу панель с анимацией
         vibes_panel, 
         
-        current_folder_text, ft.Divider(height=20, color="transparent"),
+        ft.Row([current_folder_text, telegram_settings_btn], vertical_alignment="center", spacing=10), ft.Divider(height=20, color="transparent"),
         track_grid, track_list, lyrics_container,
     ], expand=True, visible=True)
 
@@ -4192,7 +4396,7 @@ def main(page: ft.Page):
             clear_search()
             return
             
-        search_hints.visible = False # Прячем подсказки во время поиска
+        search_hints.visible = False
         search_status_text.value = f"Ищем: '{query}'..."
         search_status_text.visible = True
         page.update()
@@ -4313,7 +4517,8 @@ def main(page: ft.Page):
 
     def finish_first_run(_):
         async def _fade_out():
-            settings["music_folders"] = [first_run_folder_val.value]
+            telegram_music_path = str(Path.home() / ".audaci" / "Audaci Telegram")
+            settings["music_folders"] = [first_run_folder_val.value, telegram_music_path]
             settings["theme_mode"] = first_run_theme_rg.value
             save_settings()
 
@@ -4384,6 +4589,15 @@ def main(page: ft.Page):
             w = page.width if page.width else (page.window.width or 1050)
             h = page.height if page.height else (page.window.height or 700)
             
+            # Адаптивность диалога AI DJ
+            try:
+                if active_ai_dj[0]:
+                    active_ai_dj[0].width = min(550, w - 30)
+                    active_ai_dj[0].height = min(680, h - 40)
+                    active_ai_dj[0].update()
+            except Exception as dj_err:
+                print(f"[Audaci Error] Ошибка ресайза AI DJ: {dj_err}")
+            
             is_small = w < 950 
             is_small_screen[0] = is_small
             
@@ -4417,6 +4631,16 @@ def main(page: ft.Page):
             focus_cover.width = safe_size
             focus_cover.height = safe_size
             
+            # Динамически уменьшаем отступы при маленькой высоте окна, чтобы не съедались кнопки
+            if h < 750:
+                focus_spacer1.height = 15
+                focus_spacer2.height = 10
+                focus_spacer3.height = 5
+            else:
+                focus_spacer1.height = 30
+                focus_spacer2.height = 20
+                focus_spacer3.height = 10
+            
             # ФИКС 2: Жестко задаем ширину центральной колонки. 
             # Теперь она будет стоять ровно по центру рядом с текстом!
             focus_main_col.width = max(350, safe_size + 60)
@@ -4437,7 +4661,7 @@ def main(page: ft.Page):
                     player_left_block.expand = True
                     player_center_block.expand = False
                     player_right_block.expand = False
-                    player_right_block.width = None 
+                    player_right_block.width = 330 
                     
                     player_row_wide.controls.clear()
                     player_top_small.controls = [player_left_block, player_right_block]
@@ -4461,8 +4685,8 @@ def main(page: ft.Page):
                     
                     player_left_block.expand = 1
                     player_center_block.expand = 2
-                    player_right_block.expand = 1
-                    player_right_block.width = None
+                    player_right_block.expand = False
+                    player_right_block.width = 330
                     
                     player_top_small.controls.clear()
                     player_col_small.controls.clear()
@@ -4497,16 +4721,44 @@ def main(page: ft.Page):
         try:
             # 1. Сканируем новый файл и добавляем в БД
             from core.metadata_handler import get_track_info
+            from core.tag_fetcher import fetch_mood_from_web_async
+            
             track_info = get_track_info(file_path)
+            track_info["file_path"] = str(file_path)
+            track_info["folder_path"] = str(file_path.parent)
+            
+            # Добавляем анализ настроения
+            mood = await fetch_mood_from_web_async(track_info.get('artist', ''), track_info.get('title', ''))
+            if not mood:
+                mood = "telegram, new"
+            track_info['mood_tags'] = mood
+            
+            # Автоматически скачиваем обложку из Last.fm, если её нет в метаданных
+            if not track_info.get("cover_path") or "icon.png" in str(track_info.get("cover_path", "")):
+                try:
+                    from core.tag_fetcher import fetch_cover_from_web_async
+                    cover_bytes = await fetch_cover_from_web_async(track_info.get('artist', ''), track_info.get('title', ''))
+                    if cover_bytes:
+                        from core.telegram_handler import embed_cover_in_audio
+                        import asyncio
+                        await asyncio.to_thread(embed_cover_in_audio, file_path, cover_bytes)
+                        track_info = get_track_info(file_path)
+                        track_info["file_path"] = str(file_path)
+                        track_info["folder_path"] = str(file_path.parent)
+                        track_info['mood_tags'] = mood
+                except Exception as cover_err:
+                    print(f"[Audaci Sync] Ошибка авто-скачивания обложки: {cover_err}")
+            
             db.add_track_optimized(track_info)
             
             # 2. Уведомляем пользователя в UI
             show_snackbar(f"📥 Telegram: {track_info['title']} добавлен в библиотеку!")
             
             # 3. Обновляем текущий вид (Живая синхронизация)
-            telegram_music_path = str(Path.home() / "Music" / "Audaci Telegram")
-            if music_path_ref[0] == telegram_music_path or music_path_ref[0] == "Все треки":
-                load_folder(music_path_ref[0])
+            telegram_music_path = str(Path.home() / ".audaci" / "Audaci Telegram")
+            current_active_path = path_history[-1] if path_history else ""
+            if "Audaci Telegram" in current_active_path or current_active_path == "Все треки":
+                load_folder(current_active_path)
         except Exception as e:
             print(f"[Audaci Bot] Ошибка синхронизации: {e}")
 
@@ -4523,18 +4775,92 @@ def main(page: ft.Page):
         except Exception as e:
             print(f"[Audaci Bot] Ошибка запуска: {e}")
 
-    telegram_download_dir = Path.home() / "Music" / "Audaci Telegram"
-    bot_token = os.getenv("TELEGRAM_TOKEN", settings.get("telegram_token"))
-
-    if bot_token:
-        threading.Thread(
-            target=run_bot_async, 
-            args=(bot_token, telegram_download_dir), 
-            daemon=True
-        ).start()
-        print(f"[Audaci Bot] Бот запущен. Сохранение в: {telegram_download_dir}")
-    else:
-        print("[Audaci Bot] Пропуск запуска: Токен не найден.")
+    telegram_download_dir = Path.home() / ".audaci" / "Audaci Telegram"
+    telegram_download_dir.mkdir(parents=True, exist_ok=True)
+    
+    def poll_central_server():
+        import asyncio
+        import websockets
+        import requests
+        import uuid
+        import json
+        import os
+        from pathlib import Path
+        
+        # Очищаем переменные окружения прокси для этого потока/процесса при локальном сервере,
+        # чтобы они не перехватывали локальные HTTP- и WebSocket-подключения.
+        server_url = settings.get("central_server_url", "http://localhost:8080")
+        is_local = "127.0.0.1" in server_url or "localhost" in server_url
+        if is_local:
+            for env_var in ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"]:
+                os.environ.pop(env_var, None)
+        
+        async def listen_for_tracks():
+            server_url = settings.get("central_server_url", "http://localhost:8080")
+            sync_code = settings.get("telegram_sync_code")
+            if not sync_code:
+                return
+            
+            use_proxies = server_url.startswith("http://127.0.0.1") or server_url.startswith("http://localhost")
+            proxies = {"http": None, "https": None} if use_proxies else None
+            
+            ws_url = server_url.replace("http://", "ws://").replace("https://", "wss://") + f"/api/ws/sync/{sync_code}"
+            print(f"[Audaci Sync] Старт WebSocket: sync_code='{sync_code}', ws_url='{ws_url}'")
+                    
+            while True:
+                try:
+                    async with websockets.connect(ws_url) as websocket:
+                        print("[Audaci Sync] WebSocket подключен")
+                        while True:
+                            msg = await websocket.recv()
+                            data = json.loads(msg)
+                            if data.get("event") == "unlinked":
+                                print("[Audaci Sync] Плеер был отключен из Telegram!")
+                                settings["telegram_sync_code"] = ""
+                                save_settings()
+                                show_snackbar("❌ Синхронизация с Telegram отключена через бот.")
+                                break
+                            elif data.get("event") == "new_track":
+                                print("[Audaci Sync] Получено уведомление о новом треке!")
+                                # Скачиваем пока есть треки
+                                while True:
+                                    try:
+                                        dl_res = requests.get(
+                                            f"{server_url}/api/sync/{sync_code}/download", 
+                                            timeout=15,
+                                            proxies=proxies
+                                        )
+                                        if dl_res.status_code == 200:
+                                            filename = f"telegram_track_{uuid.uuid4().hex[:8]}.mp3"
+                                            cd = dl_res.headers.get("content-disposition", "")
+                                            if "filename=" in cd:
+                                                filename = cd.split("filename=")[-1].strip('"')
+                                            filepath = telegram_download_dir / filename
+                                            with open(filepath, "wb") as f:
+                                                f.write(dl_res.content)
+                                            
+                                            print(f"[Audaci Sync] Трек успешно сохранен в: {filepath}")
+                                            # Запускаем обработку нового файла
+                                            page.run_task(on_telegram_download_complete, filepath)
+                                        elif dl_res.status_code == 404:
+                                            break # Больше треков нет
+                                        else:
+                                            print(f"[Audaci Sync] Ошибка при скачивании трека: HTTP {dl_res.status_code}")
+                                            break
+                                    except Exception as e:
+                                        print(f"[Audaci Sync] Ошибка загрузки файла: {e}")
+                                        break
+                except websockets.exceptions.ConnectionClosed:
+                    print("[Audaci Sync] WebSocket отключен. Переподключение через 5 секунд...")
+                    await asyncio.sleep(5)
+                except Exception as e:
+                    print(f"[Audaci Sync] Ошибка WebSocket: {e}. Переподключение через 5 секунд...")
+                    await asyncio.sleep(5)
+ 
+        asyncio.run(listen_for_tracks())
+            
+    threading.Thread(target=poll_central_server, daemon=True).start()
+    print("[Audaci Sync] Запущен фоновый поллинг центрального сервера.")
 
     # --- ЗАПУСК API СЕРВЕРА ---
     
@@ -4549,8 +4875,27 @@ def main(page: ft.Page):
 
     # --- ЗАПУСК API СЕРВЕРА ---
     def run_api():
+        def on_api_control(command):
+            async def _exec():
+                try:
+                    if command == "play":
+                        if not audio.player.is_playing():
+                            toggle_play()
+                    elif command == "pause":
+                        if audio.player.is_playing():
+                            toggle_play()
+                    elif command == "toggle":
+                        toggle_play()
+                    elif command == "next":
+                        play_next()
+                    elif command == "prev":
+                        play_prev()
+                except Exception as e:
+                    print(f"[Audaci API Callback] Ошибка выполнения команды {command}: {e}")
+            page.run_task(_exec)
+
         try:
-            start_api(audio, state, port=8000)
+            start_api(audio, state, on_control_cmd=on_api_control, port=8000)
         except Exception as e:
             print(f"[Audaci API] Ошибка запуска: {e}")
 

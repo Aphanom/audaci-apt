@@ -1,755 +1,799 @@
 <!DOCTYPE html>
 <html lang="ru">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Audaci | Умный аудиоплеер с AI</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <title>Audaci — Ultra-Premium Audio Experience & AI Player</title>
+    <meta name="description" content="Первый в мире тактильный аудио-плеер с AI-аналитикой настроения и глубокой интеграцией в Telegram.">
+    
+    <!-- Premium Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Logic & Motion -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
 
     <style>
         :root {
-            --bg-dark: #050505;
-            --surface: #111111;
-            --surface-glass: rgba(17, 17, 17, 0.6);
-            --text-main: #ffffff;
-            --text-muted: #888888;
-            --accent-purple: #9d50bb;
-            --accent-green: #6e48aa; /* Changed to a purple-ish mix for better harmony */
-            --brand-color: #1DB954;
-            --glow-color: rgba(29, 185, 84, 0.2);
+            /* Deep Design System - Powered by OKLCH for vibrancy */
+            --brand-primary: oklch(85% 0.25 150);
+            --brand-secondary: oklch(55% 0.25 300);
+            --brand-accent: oklch(85% 0.2 90);
+            
+            --text-main: #0F172A;
+            --text-muted: #64748B;
+            
+            /* The Glass Protocol */
+            --glass-bg: rgba(255, 255, 255, 0.75);
+            --glass-border: rgba(255, 255, 255, 0.9);
+            --glass-glow: rgba(255, 255, 255, 0.5);
+            
+            /* Motion Springs */
+            --spring-stiff: 400;
+            --spring-damp: 28;
+
+            /* Spatial Shadows */
+            --shadow-contact: 0 2px 4px rgba(0,0,0,0.02);
+            --shadow-ambient: 0 8px 16px rgba(0,0,0,0.04);
+            --shadow-gravity: 0 24px 48px rgba(0,0,0,0.08);
+            --shadow-premium: var(--shadow-contact), var(--shadow-ambient), var(--shadow-gravity);
         }
 
         * {
             box-sizing: border-box;
-            margin: 0;
-            padding: 0;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
         body {
-            background-color: var(--bg-dark);
-            color: var(--text-main);
+            margin: 0;
+            background-color: #fcfcfc;
+            background: 
+                radial-gradient(circle at 15% 50%, oklch(85% 0.25 150 / 0.08), transparent 35%),
+                radial-gradient(circle at 85% 30%, oklch(55% 0.25 300 / 0.08), transparent 35%),
+                radial-gradient(circle at 50% 80%, oklch(85% 0.2 90 / 0.05), transparent 30%),
+                #fcfcfc;
+            background-attachment: fixed;
             font-family: 'Outfit', sans-serif;
+            color: var(--text-main);
             overflow-x: hidden;
-            line-height: 1.6;
         }
 
-        /* Dynamic Background Glows */
-        .bg-glow {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: -1;
-            overflow: hidden;
-            pointer-events: none;
+        /* --- Global Utilities --- */
+        .glass {
+            background: var(--glass-bg);
+            backdrop-filter: blur(40px) saturate(200%);
+            -webkit-backdrop-filter: blur(40px) saturate(200%);
+            border: 1px solid var(--glass-border);
+            box-shadow: inset 0 1px 1px var(--glass-glow), var(--shadow-premium);
         }
 
-        .glow-1 {
-            position: absolute;
-            top: -10%;
-            right: -10%;
-            width: 50vw;
-            height: 50vw;
-            background: radial-gradient(circle, rgba(157, 80, 187, 0.15) 0%, transparent 70%);
-            filter: blur(80px);
-        }
-
-        .glow-2 {
-            position: absolute;
-            bottom: -10%;
-            left: -10%;
-            width: 40vw;
-            height: 40vw;
-            background: radial-gradient(circle, rgba(29, 185, 84, 0.1) 0%, transparent 70%);
-            filter: blur(80px);
-        }
-
-        /* Glass Header */
-        header {
-            position: fixed;
-            top: 0;
-            width: 100%;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 20px 8%;
-            background: var(--surface-glass);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-            z-index: 1000;
-            transition: all 0.3s ease;
-        }
-
-        .brand {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            font-weight: 800;
-            font-size: 1.6rem;
-            letter-spacing: -1px;
-            color: var(--text-main);
-            text-decoration: none;
-        }
-
-        .brand img {
-            width: 42px;
-            height: 42px;
-            border-radius: 12px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-            object-fit: cover;
-        }
-
-        /* Hero Section */
-        .hero {
-            position: relative;
-            padding: 180px 8% 100px;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
-        }
-
-        .badge {
-            background: rgba(29, 185, 84, 0.1);
-            color: var(--brand-color);
-            padding: 8px 20px;
-            border-radius: 100px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            margin-bottom: 25px;
-            border: 1px solid rgba(29, 185, 84, 0.2);
-            animation: fadeInDown 0.8s ease-out;
-        }
-
-        h1 {
-            font-size: clamp(3.5rem, 8vw, 6.5rem);
-            font-weight: 800;
-            line-height: 0.95;
-            margin-bottom: 30px;
-            letter-spacing: -3px;
-            animation: fadeInUp 0.8s ease-out;
-        }
-
-        .text-gradient {
-            background: linear-gradient(135deg, #ffffff 0%, #888888 100%);
+        .premium-text-gradient {
+            background: linear-gradient(90deg, var(--brand-primary), var(--brand-secondary), var(--brand-primary));
+            background-size: 200% auto;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+            animation: shine 8s linear infinite;
         }
 
-        .accent-gradient {
-            background: linear-gradient(135deg, #1DB954 0%, #19e68c 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+        @keyframes shine {
+            to { background-position: 200% center; }
         }
 
-        .subtitle {
-            font-size: clamp(1.1rem, 2.5vw, 1.4rem);
-            color: var(--text-muted);
-            max-width: 700px;
-            margin-bottom: 50px;
-            animation: fadeInUp 1s ease-out;
-        }
+        /* Hide Scrollbars but keep functionality */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        /* Premium Download Panel */
-        .download-panel {
-            background: rgba(255, 255, 255, 0.03);
-            backdrop-filter: blur(10px);
-            padding: 12px;
-            border-radius: 100px;
-            display: inline-flex;
-            align-items: center;
-            gap: 15px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
-            margin-bottom: 80px;
-            animation: fadeInUp 1.2s ease-out;
-        }
-
-        select {
-            appearance: none;
-            background: transparent;
-            color: var(--text-main);
-            border: none;
-            padding: 12px 45px 12px 25px;
-            font-size: 1.05rem;
-            font-weight: 600;
-            outline: none;
-            cursor: pointer;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='white' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 20px center;
-            border-radius: 50px;
-            transition: background 0.3s;
-        }
-
-        select:hover {
-            background-color: rgba(255, 255, 255, 0.05);
-        }
-
-        .btn-download {
-            background: var(--brand-color);
-            color: #000;
-            border: none;
-            padding: 16px 40px;
-            border-radius: 50px;
-            font-size: 1.05rem;
-            font-weight: 700;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
-        }
-
-        .btn-download:hover {
-            transform: translateY(-2px) scale(1.02);
-            box-shadow: 0 15px 30px rgba(29, 185, 84, 0.4);
-            background: #1ed760;
-        }
-
-        /* Mockup Container */
-        .mockup-container {
-            width: 100%;
-            max-width: 1100px;
-            margin: 0 auto 150px;
-            perspective: 1000px;
-            animation: fadeInUp 1.4s ease-out;
-        }
-
-        .main-mockup {
-            width: 100%;
-            border-radius: 24px;
-            box-shadow: 0 50px 100px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.1);
-            transform: rotateX(5deg);
-            transition: transform 0.5s ease;
-        }
-
-        .main-mockup:hover {
-            transform: rotateX(0deg);
-        }
-
-        /* Features Section */
-        .section-title {
-            text-align: center;
-            margin-bottom: 80px;
-        }
-
-        .section-title h2 {
-            font-size: 3rem;
-            font-weight: 800;
-            letter-spacing: -1.5px;
-        }
-
-        .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 40px;
-            padding: 0 8% 150px;
-            max-width: 1300px;
-            margin: 0 auto;
-        }
-
-        .feature-card {
-            background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%);
-            padding: 50px 40px;
-            border-radius: 32px;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            transition: all 0.4s ease;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .feature-card:hover {
-            transform: translateY(-15px);
-            border-color: rgba(29, 185, 84, 0.3);
-            background: rgba(255, 255, 255, 0.05);
-        }
-
-        .feature-icon {
-            width: 60px;
-            height: 60px;
-            background: rgba(29, 185, 84, 0.1);
-            border-radius: 18px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 2rem;
-            margin-bottom: 30px;
-            color: var(--brand-color);
-        }
-
-        .feature-card h3 {
-            font-size: 1.6rem;
-            margin-bottom: 15px;
-            font-weight: 700;
-        }
-
-        .feature-card p {
-            color: var(--text-muted);
-            font-size: 1.1rem;
-            line-height: 1.7;
-        }
-
-        /* === ROADMAP === */
-        .roadmap-section {
-            padding: 0 8% 150px;
-        }
-
-        .section-subtitle {
-            font-size: 1.15rem;
-            color: var(--text-muted);
-            margin-top: 15px;
-        }
-
-        .roadmap-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 30px;
-            max-width: 1300px;
-            margin: 0 auto;
-        }
-
-        .roadmap-card {
-            padding: 40px 35px;
-            border-radius: 28px;
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            position: relative;
-            transition: all 0.4s ease;
-            overflow: hidden;
-        }
-
-        .roadmap-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 3px;
-            border-radius: 28px 28px 0 0;
-        }
-
-        .roadmap-card.done {
-            background: linear-gradient(180deg, rgba(29, 185, 84, 0.07) 0%, transparent 100%);
-        }
-
-        .roadmap-card.done::before {
-            background: linear-gradient(to right, #1DB954, #19e68c);
-        }
-
-        .roadmap-card.inprogress {
-            background: linear-gradient(180deg, rgba(251, 191, 36, 0.07) 0%, transparent 100%);
-        }
-
-        .roadmap-card.inprogress::before {
-            background: linear-gradient(to right, #f59e0b, #fbbf24);
-        }
-
-        .roadmap-card.planned {
-            background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%);
-        }
-
-        .roadmap-card.planned::before {
-            background: linear-gradient(to right, #555, #888);
-        }
-
-        .roadmap-card:hover {
-            transform: translateY(-8px);
-            border-color: rgba(255, 255, 255, 0.12);
-        }
-
-        .roadmap-status {
-            font-size: 0.8rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            margin-bottom: 20px;
-            color: var(--text-muted);
-        }
-
-        .roadmap-card.done .roadmap-status { color: #1DB954; }
-        .roadmap-card.inprogress .roadmap-status { color: #fbbf24; }
-
-        .roadmap-icon {
-            font-size: 2.2rem;
-            margin-bottom: 18px;
-        }
-
-        .roadmap-card h3 {
-            font-size: 1.4rem;
-            font-weight: 700;
-            margin-bottom: 12px;
-        }
-
-        .roadmap-card p {
-            color: var(--text-muted);
-            font-size: 1rem;
-            line-height: 1.7;
-        }
-
-        /* Footer */
-        footer {
-            padding: 80px 8% 40px;
-            background: #000;
-            text-align: center;
-            border-top: 1px solid rgba(255, 255, 255, 0.05);
-        }
-
-        .footer-logo {
-            font-weight: 800;
-            font-size: 1.5rem;
-            margin-bottom: 20px;
-            display: block;
-        }
-
-        .copyright {
-            color: #555;
-            font-size: 0.95rem;
-        }
-
-        /* Animations */
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        @keyframes fadeInDown {
-            from { opacity: 0; transform: translateY(-20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .download-panel {
-                flex-direction: column;
-                border-radius: 24px;
-                padding: 20px;
-                width: 100%;
-                max-width: 400px;
-            }
-
-            select {
-                width: 100%;
-                text-align: center;
-                background-position: right 30% center;
-            }
-
-            .btn-download {
-                width: 100%;
-                justify-content: center;
-            }
-
-            h1 {
-                font-size: 3.5rem;
-            }
-
-            .about-stats {
-                flex-direction: column;
-                gap: 30px;
-            }
-
-            .stat-divider {
-                width: 60px;
-                height: 1px;
-            }
-
-            .about-title {
-                font-size: 2.5rem;
-            }
-        }
-
-        /* === О НАС === */
-        .about-section {
-            padding: 80px 8% 150px;
-            text-align: center;
-        }
-
-        .about-inner {
-            max-width: 900px;
-            margin: 0 auto;
-            background: linear-gradient(135deg, rgba(29, 185, 84, 0.05) 0%, rgba(157, 80, 187, 0.05) 100%);
-            border: 1px solid rgba(255, 255, 255, 0.07);
-            border-radius: 40px;
-            padding: 80px 60px;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .about-inner::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle at center, rgba(29, 185, 84, 0.04) 0%, transparent 60%);
-            pointer-events: none;
-        }
-
-        .about-badge {
-            display: inline-block;
-            background: rgba(29, 185, 84, 0.1);
-            color: var(--brand-color);
-            padding: 8px 22px;
-            border-radius: 100px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            margin-bottom: 30px;
-            border: 1px solid rgba(29, 185, 84, 0.2);
-        }
-
-        .about-title {
-            font-size: 3.2rem;
-            font-weight: 800;
-            letter-spacing: -2px;
-            line-height: 1.05;
-            margin-bottom: 25px;
-        }
-
-        .about-desc {
-            font-size: 1.2rem;
-            color: var(--text-muted);
-            line-height: 1.8;
-            max-width: 680px;
-            margin: 0 auto 60px;
-        }
-
-        .about-stats {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 50px;
-        }
-
-        .stat-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .stat-number {
-            font-size: 3rem;
-            font-weight: 800;
-            background: linear-gradient(135deg, #1DB954, #19e68c);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            letter-spacing: -2px;
-        }
-
-        .stat-label {
-            font-size: 0.9rem;
-            color: var(--text-muted);
-            font-weight: 500;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .stat-divider {
-            width: 1px;
-            height: 60px;
-            background: rgba(255, 255, 255, 0.1);
-        }
+        /* Custom Scrollbar for Mac Mockup */
+        .mac-scroll::-webkit-scrollbar { width: 5px; }
+        .mac-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 10px; }
+        .mac-scroll::-webkit-scrollbar-track { background: transparent; }
     </style>
 </head>
-
 <body>
 
-    <div class="bg-glow">
-        <div class="glow-1"></div>
-        <div class="glow-2"></div>
+    <div id="root">
+        <!-- SEO & Initial State Fallback Content -->
+        <section style="padding: 200px 5%; text-align: center; font-family: 'Outfit', sans-serif;">
+            <h1 style="font-size: clamp(48px, 8vw, 96px); font-weight: 900; letter-spacing: -4px; margin-bottom: 32px;">
+                Звук, который <span style="color: #00E676;">дышит.</span>
+            </h1>
+            <p style="max-width: 640px; margin: 0 auto; font-size: 22px; font-weight: 500; color: #64748B; line-height: 1.5;">
+                Первый в мире тактильный аудио-плеер с AI-аналитикой настроения и глубокой интеграцией в Telegram.
+            </p>
+        </section>
     </div>
 
-    <header>
-        <a href="#" class="brand">
-            <img src="assets/icon.png" alt="Audaci Logo">
-            Audaci
-        </a>
-        <div class="nav-links">
-            <!-- Navigation links can be added here -->
-        </div>
-    </header>
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useMemo } = React;
+        const { motion, AnimatePresence, useScroll, useTransform, useSpring, useMotionValue, useMotionTemplate } = Motion;
 
-    <main>
-        <section class="hero">
-            <div class="badge">Version 2.0 is here</div>
-            <h1><span class="text-gradient">Твоя музыка.</span><br><span class="accent-gradient">Твой AI Диджей.</span></h1>
-            <p class="subtitle">Интеллектуальный аудиоплеер с голосовым управлением, умным подбором музыки под настроение и полной поддержкой Linux, Windows и macOS.</p>
+        const ALBUMS_DATA = [
+            { id: 0, title: "After Hours", artist: "The Weeknd", color: "oklch(60% 0.25 20)", img: "https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=500&q=80" },
+            { id: 1, title: "Midnights", artist: "Taylor Swift", color: "oklch(60% 0.2 280)", img: "https://images.unsplash.com/photo-1493225255756-d9584f8606e9?w=500&q=80" },
+            { id: 2, title: "Fine Line", artist: "Harry Styles", color: "oklch(65% 0.25 340)", img: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&q=80" },
+            { id: 3, title: "Future Nostalgia", artist: "Dua Lipa", color: "oklch(70% 0.2 40)", img: "https://images.unsplash.com/photo-1514525253361-bee8718a74a7?w=500&q=80" }
+        ];
 
-            <div class="download-panel">
-                <select id="os-selector">
-                    <option value="linux">🐧 Linux (.deb)</option>
-                    <option value="windows">🪟 Windows (.exe)</option>
-                    <option value="macos">🍎 macOS (.dmg)</option>
-                </select>
+        // --- Custom Springs Configuration ---
+        const playfulSpring = { type: "spring", stiffness: 400, damping: 25 };
+        const gentleSpring = { type: "spring", stiffness: 100, damping: 20 };
+        const bubbleSpring = { type: "spring", stiffness: 500, damping: 15 };
 
-                <button class="btn-download" id="download-btn">
-                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                    </svg>
-                    Скачать бесплатно
-                </button>
-            </div>
-
-            <div class="mockup-container">
-                <img src="audaci-main_view.png" alt="Audaci Desktop Interface" class="main-mockup">
-            </div>
-        </section>
-
-        <section class="features-section">
-            <div class="section-title">
-                <h2>Почему Audaci?</h2>
-            </div>
-            <div class="features">
-                <div class="feature-card">
-                    <div class="feature-icon">🧠</div>
-                    <h3>AI Диджей</h3>
-                    <p>Просто напиши "грустное" или "энергичное", и наш ИИ мгновенно соберет идеальный плейлист из твоей локальной библиотеки.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🎤</div>
-                    <h3>Голосовое управление</h3>
-                    <p>Полный контроль без рук. Попроси включить любимый альбом или переключить трек одной фразой.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">⚡</div>
-                    <h3>Кроссплатформенность</h3>
-                    <p>Оптимизировано для Astra Linux, Windows и macOS. Нативные уведомления и минимальное потребление ресурсов.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">📱</div>
-                    <h3>Telegram-бот</h3>
-                    <p>Загружай треки и управляй плеером прямо из Telegram. Мобильный интерфейс в одном нажатии.</p>
-                </div>
-            </div>
-        </section>
-
-        <section class="features-section">
-            <div class="section-title">
-                <h2>Интерфейс будущего</h2>
-            </div>
-            <div class="features">
-                <img src="screen2.png" alt="Mobile Interface" style="width: 100%; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1);">
-                <img src="screen3.png" alt="AI Interface" style="width: 100%; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1);">
-            </div>
-        </section>
-
-        <section id="about" class="about-section">
-            <div class="about-inner">
-                <div class="about-badge">О нас</div>
-                <h2 class="about-title">Создано с заботой<br>о музыке и людях</h2>
-                <p class="about-desc">Audaci — это дипломный проект, созданный студентом для решения реальной задачи: сделать слушание музыки умным и приятным. Мы верим, что плеер должен понимать твоё настроение — не только хранить файлы.</p>
-                <div class="about-stats">
-                    <div class="stat-item">
-                        <span class="stat-number">3</span>
-                        <span class="stat-label">Платформы</span>
-                    </div>
-                    <div class="stat-divider"></div>
-                    <div class="stat-item">
-                        <span class="stat-number">AI</span>
-                        <span class="stat-label">Рекомендации</span>
-                    </div>
-                    <div class="stat-divider"></div>
-                    <div class="stat-item">
-                        <span class="stat-number">∞</span>
-                        <span class="stat-label">Треков</span>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <section id="roadmap" class="roadmap-section">
-            <div class="section-title">
-                <h2>Планы на будущее</h2>
-                <p class="section-subtitle">Audaci — живой проект. Вот куда мы движемся.</p>
-            </div>
-            <div class="roadmap-grid">
-                <div class="roadmap-card done">
-                    <div class="roadmap-status">✅ Готово</div>
-                    <div class="roadmap-icon">🎵</div>
-                    <h3>Базовый плеер</h3>
-                    <p>Воспроизведение, очередь, shuffle, repeat, поиск по медиатеке и системный трей.</p>
-                </div>
-                <div class="roadmap-card done">
-                    <div class="roadmap-status">✅ Готово</div>
-                    <div class="roadmap-icon">🧠</div>
-                    <h3>AI-рекомендации</h3>
-                    <p>Умный подбор треков по настроению и голосовое управление через Vosk.</p>
-                </div>
-                <div class="roadmap-card inprogress">
-                    <div class="roadmap-status">🚧 В разработке</div>
-                    <div class="roadmap-icon">✈️</div>
-                    <h3>Полная интеграция Telegram</h3>
-                    <p>Загрузка треков, синхронизация плейлистов и полноценное управление плеером прямо из Telegram Bot.</p>
-                </div>
-                <div class="roadmap-card planned">
-                    <div class="roadmap-status">📅 Запланировано</div>
-                    <div class="roadmap-icon">📱</div>
-                    <h3>Мобильная версия</h3>
-                    <p>Нативное приложение для iOS и Android с синхронизацией с десктопом через облако.</p>
-                </div>
-                <div class="roadmap-card planned">
-                    <div class="roadmap-status">📅 Запланировано</div>
-                    <div class="roadmap-icon">☁️</div>
-                    <h3>Облачная синхронизация</h3>
-                    <p>Плейлисты, настройки и история прослушивания — везде и на всех устройствах.</p>
-                </div>
-                <div class="roadmap-card planned">
-                    <div class="roadmap-status">💡 Идея</div>
-                    <div class="roadmap-icon">🌐</div>
-                    <h3>Социальные функции</h3>
-                    <p>Делиться плейлистами с друзьями, видеть что слушают другие, создавать совместные очереди.</p>
-                </div>
-            </div>
-        </section>
-    </main>
-
-    <footer>
-        <span class="footer-logo">Audaci</span>
-        <p class="copyright">© 2026 Audaci Player. Разработано с любовью для меломанов.</p>
-    </footer>
-
-    <script>
-        // Smooth scroll for anchors
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function (e) {
-                e.preventDefault();
-                document.querySelector(this.getAttribute('href')).scrollIntoView({
-                    behavior: 'smooth'
-                });
-            });
-        });
-
-        // Download logic
-        document.getElementById('download-btn').addEventListener('click', function () {
-            const os = document.getElementById('os-selector').value;
-            const repoBase = 'https://github.com/Aphanom/audaci-apt/releases/latest/download/';
-            let filename = '';
-
-            if (os === 'linux') {
-                filename = 'audaci.deb';
-            } else if (os === 'windows') {
-                filename = 'audaci.exe';
-            } else if (os === 'macos') {
-                filename = 'audaci.dmg';
-            }
-
-            // Redirect to GitHub Release download
-            window.location.href = repoBase + filename;
+        // --- Optimized Icon Component ---
+        const Icon = ({ name, size = 20, color = "currentColor", strokeWidth = 2, className = "" }) => {
+            const ref = useRef(null);
             
-            // Visual feedback
-            const btn = this;
-            const originalText = btn.innerHTML;
-            btn.innerHTML = 'Начинаем загрузку...';
-            setTimeout(() => {
-                btn.innerHTML = originalText;
-            }, 3000);
-        });
+            useEffect(() => {
+                if (ref.current && window.lucide) {
+                    ref.current.innerHTML = `<i data-lucide="${name}"></i>`;
+                    window.lucide.createIcons({
+                        attrs: { 
+                            "stroke": color, 
+                            "stroke-width": strokeWidth,
+                            "width": size,
+                            "height": size
+                        }
+                    });
+                }
+            }, [name, color, strokeWidth, size]);
+
+            return (
+                <span 
+                    ref={ref} 
+                    className={className} 
+                    style={{ display: 'inline-flex', width: size, height: size, alignItems: 'center', justifyContent: 'center' }} 
+                />
+            );
+        };
+
+        // --- MAC OS WINDOW FRAME (WITH 3D PARALLAX) ---
+        const MacosFrame = ({ children, title = "Audaci Engine", scrollYProgress }) => {
+            const rotateX = useTransform(scrollYProgress, [0, 0.3], [0, 8]);
+            const scale = useTransform(scrollYProgress, [0, 0.3], [1, 0.95]);
+            const springRotateX = useSpring(rotateX, { stiffness: 100, damping: 30 });
+            const springScale = useSpring(scale, { stiffness: 100, damping: 30 });
+
+            return (
+                <motion.div 
+                    style={{
+                        width: '100%',
+                        maxWidth: '1100px',
+                        margin: '0 auto',
+                        borderRadius: '24px',
+                        background: '#fff',
+                        border: '1px solid rgba(0,0,0,0.1)',
+                        boxShadow: '0 4px 6px rgba(0,0,0,0.02), 0 20px 40px rgba(0,0,0,0.1), 0 60px 120px rgba(0,0,0,0.05)',
+                        overflow: 'hidden',
+                        position: 'relative',
+                        rotateX: springRotateX,
+                        scale: springScale,
+                        transformStyle: 'preserve-3d'
+                    }}
+                >
+                    {/* Header / Traffic Lights */}
+                    <div style={{
+                        height: '52px',
+                        background: 'rgba(255,255,255,0.85)',
+                        backdropFilter: 'blur(20px)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '0 20px',
+                        borderBottom: '1px solid rgba(0,0,0,0.05)',
+                        zIndex: 10
+                    }}>
+                        <div style={{ display: 'flex', gap: 8, width: '100px' }}>
+                            <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#FF5F57', border: '0.5px solid rgba(0,0,0,0.1)' }} />
+                            <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#FEBC2E', border: '0.5px solid rgba(0,0,0,0.1)' }} />
+                            <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#28C840', border: '0.5px solid rgba(0,0,0,0.1)' }} />
+                        </div>
+                        <div style={{ flex: 1, textAlign: 'center', fontSize: '13px', fontWeight: 600, color: '#64748b', letterSpacing: '0.5px' }}>
+                            {title}
+                        </div>
+                        <div style={{ width: '100px', display: 'flex', justifyContent: 'flex-end' }}>
+                            <Icon name="search" size={16} color="#94a3b8" />
+                        </div>
+                    </div>
+                    
+                    <div style={{ height: '640px', display: 'flex' }}>
+                        {children}
+                    </div>
+                </motion.div>
+            );
+        };
+
+        // --- IOS PHONE FRAME ---
+        const IosFrame = ({ children, isPlaying = false }) => {
+            return (
+                <div style={{
+                    width: '340px',
+                    height: '680px',
+                    background: '#1a1a1a',
+                    borderRadius: '54px',
+                    padding: '12px',
+                    position: 'relative',
+                    boxShadow: 'inset 0 0 0 2px #444, inset 0 0 20px rgba(255,255,255,0.1), 0 50px 100px -20px rgba(0,0,0,0.4)',
+                    border: '4px solid #333'
+                }}>
+                    <div style={{ position: 'absolute', top: '10px', left: '50%', transform: 'translateX(-50%)', width: '40px', height: '4px', background: '#222', borderRadius: '10px' }} />
+                    
+                    <div className="no-scrollbar" style={{
+                        width: '100%',
+                        height: '100%',
+                        background: '#fff',
+                        borderRadius: '42px',
+                        overflow: 'hidden',
+                        position: 'relative',
+                        boxShadow: 'inset 0 0 40px rgba(0,0,0,0.05)'
+                    }}>
+                        {/* Dynamic Island */}
+                        <motion.div 
+                            animate={{ 
+                                width: isPlaying ? 160 : 110,
+                                height: isPlaying ? 38 : 34,
+                            }}
+                            transition={playfulSpring}
+                            style={{
+                                position: 'absolute',
+                                top: '11px',
+                                left: '50%',
+                                transform: 'translateX(-50%)',
+                                background: '#000',
+                                borderRadius: '20px',
+                                zIndex: 1000,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: isPlaying ? 'space-between' : 'center',
+                                padding: isPlaying ? '0 12px' : '0'
+                            }}
+                        >
+                            {isPlaying && (
+                                <>
+                                    <div style={{ width: 20, height: 20, borderRadius: '4px', background: 'var(--brand-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <div style={{ width: 2, height: 8, background: '#000', borderRadius: 1 }} />
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                                        {[1,2,3,4].map(i => (
+                                            <motion.div 
+                                                key={i}
+                                                animate={{ height: [4, 12, 6, 14, 4] }}
+                                                transition={{ repeat: Infinity, duration: 1, delay: i * 0.1 }}
+                                                style={{ width: 2, background: 'var(--brand-primary)', borderRadius: 1 }}
+                                            />
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                        </motion.div>
+
+                        <div style={{ height: '44px', padding: '0 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '14px', fontWeight: 700, position: 'relative', zIndex: 100 }}>
+                            <span>9:41</span>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                                <Icon name="signal" size={14} strokeWidth={3} />
+                                <Icon name="wifi" size={14} strokeWidth={3} />
+                                <Icon name="battery" size={14} strokeWidth={3} />
+                            </div>
+                        </div>
+
+                        {children}
+
+                        <div style={{ position: 'absolute', bottom: '8px', left: '50%', transform: 'translateX(-50%)', width: '120px', height: '5px', background: 'rgba(0,0,0,0.1)', borderRadius: '10px' }} />
+                    </div>
+                </div>
+            );
+        };
+
+        // --- APP MOCKUP CONTENT ---
+        const AudaciDesktop = ({ isPlaying, setIsPlaying, selectedAlbum, setSelectedAlbum }) => {
+            const albums = ALBUMS_DATA;
+
+            return (
+                <div style={{ display: 'flex', width: '100%', height: '100%' }}>
+                    {/* Sidebar */}
+                    <div style={{ 
+                        width: '240px', 
+                        background: 'rgba(252, 252, 252, 0.8)', 
+                        backdropFilter: 'blur(40px)',
+                        borderRight: '1px solid rgba(0,0,0,0.05)',
+                        padding: '32px 24px',
+                        display: 'flex',
+                        flexDirection: 'column'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: '48px' }}>
+                            <div style={{ width: 32, height: 32, borderRadius: '10px', background: 'var(--brand-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px oklch(85% 0.25 150 / 0.3)' }}>
+                                <Icon name="volume-2" size={18} color="#000" strokeWidth={2.5} />
+                            </div>
+                            <span style={{ fontWeight: 900, fontSize: '20px', letterSpacing: '-0.5px' }}>Audaci</span>
+                        </div>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {[
+                                { icon: 'home', label: 'Главная', active: true },
+                                { icon: 'search', label: 'Поиск' },
+                                { icon: 'library', label: 'Медиатека' },
+                                { icon: 'heart', label: 'Любимое' }
+                            ].map((item, i) => (
+                                <motion.div 
+                                    key={i}
+                                    whileHover={{ x: 4, background: 'rgba(0,0,0,0.03)' }}
+                                    style={{ 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        gap: 12, 
+                                        padding: '10px 16px', 
+                                        borderRadius: '12px',
+                                        color: item.active ? 'var(--text-main)' : 'var(--text-muted)',
+                                        fontWeight: 600,
+                                        fontSize: '15px',
+                                        cursor: 'pointer',
+                                        background: item.active ? 'rgba(0,0,0,0.05)' : 'transparent'
+                                    }}
+                                >
+                                    <Icon name={item.icon} size={18} />
+                                    {item.label}
+                                </motion.div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Main Feed */}
+                    <div className="mac-scroll" style={{ flex: 1, background: '#fff', padding: '40px', overflowY: 'auto' }}>
+                        <div style={{ marginBottom: '40px' }}>
+                            <h2 style={{ fontSize: '32px', fontWeight: 900, marginBottom: '8px' }}>С возвращением!</h2>
+                            <p style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Твой AI Диджей подготовил новый микс.</p>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '32px' }}>
+                            {albums.map((album, i) => (
+                                <motion.div 
+                                    key={i}
+                                    whileHover={{ y: -10 }}
+                                    onClick={() => setSelectedAlbum(album.id)}
+                                    style={{ cursor: 'pointer' }}
+                                >
+                                    <div style={{ 
+                                        position: 'relative', 
+                                        width: '100%', 
+                                        paddingBottom: '100%', 
+                                        borderRadius: '24px', 
+                                        overflow: 'hidden',
+                                        marginBottom: '16px',
+                                        boxShadow: selectedAlbum === album.id ? `0 20px 40px ${album.color.replace(')', ' / 0.2)')}` : '0 10px 30px rgba(0,0,0,0.05)',
+                                        border: selectedAlbum === album.id ? `2px solid ${album.color}` : '2px solid transparent',
+                                        transition: 'all 0.3s ease'
+                                    }}>
+                                        <img src={album.img} style={{ position: 'absolute', width: '100%', height: '100%', objectFit: 'cover' }} />
+                                        {selectedAlbum === album.id && (
+                                            <div style={{ position: 'absolute', bottom: 12, right: 12, width: 40, height: 40, borderRadius: '50%', background: album.color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+                                                <Icon name="music" size={20} strokeWidth={3} />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div style={{ fontWeight: 800, fontSize: '17px' }}>{album.title}</div>
+                                    <div style={{ color: 'var(--text-muted)', fontSize: '14px', fontWeight: 500 }}>{album.artist}</div>
+                                </motion.div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Dashboard / Now Playing */}
+                    <div className="no-scrollbar" style={{ width: '320px', background: '#fcfcfc', borderLeft: '1px solid rgba(0,0,0,0.05)', padding: '40px 32px', overflowY: 'auto' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', color: '#cbd5e1', marginBottom: '32px' }}>NOW PLAYING</div>
+                        
+                        <AnimatePresence mode="wait">
+                            <motion.div 
+                                key={selectedAlbum}
+                                initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 1.1, y: -10 }}
+                                transition={playfulSpring}
+                            >
+                                <img 
+                                    src={albums[selectedAlbum].img} 
+                                    style={{ width: '100%', borderRadius: '24px', boxShadow: '0 30px 60px rgba(0,0,0,0.15)', marginBottom: '32px' }} 
+                                />
+                                <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+                                    <h3 style={{ fontSize: '24px', fontWeight: 900, marginBottom: '4px' }}>{albums[selectedAlbum].title}</h3>
+                                    <p style={{ color: 'var(--text-muted)', fontSize: '16px', fontWeight: 600 }}>{albums[selectedAlbum].artist}</p>
+                                </div>
+                            </motion.div>
+                        </AnimatePresence>
+
+                        {/* Custom Progress Bar */}
+                        <div style={{ marginBottom: '32px' }}>
+                            <div style={{ height: '6px', width: '100%', background: 'rgba(0,0,0,0.05)', borderRadius: '10px', position: 'relative', overflow: 'hidden' }}>
+                                <motion.div 
+                                    initial={{ width: '0%' }}
+                                    animate={{ width: isPlaying ? '65%' : '35%' }}
+                                    transition={{ duration: isPlaying ? 30 : 0.5, repeat: isPlaying ? Infinity : 0 }}
+                                    style={{ height: '100%', background: albums[selectedAlbum].color, borderRadius: '10px' }}
+                                />
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px', fontSize: '12px', fontWeight: 700, color: '#94a3b8', fontFamily: 'JetBrains Mono' }}>
+                                <span>2:14</span>
+                                <span>3:45</span>
+                            </div>
+                        </div>
+
+                        {/* Controls */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '24px' }}>
+                            <Icon name="shuffle" size={18} color="#cbd5e1" />
+                            <Icon name="skip-back" size={22} strokeWidth={2.5} />
+                            <motion.button 
+                                onClick={() => setIsPlaying(!isPlaying)}
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                style={{ width: 64, height: 64, borderRadius: '50%', background: albums[selectedAlbum].color, border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 15px 30px ${albums[selectedAlbum].color.replace(')', ' / 0.3)')}`, cursor: 'pointer' }}
+                            >
+                                <Icon name={isPlaying ? "pause" : "play"} size={28} strokeWidth={3} color="#fff" />
+                            </motion.button>
+                            <Icon name="skip-forward" size={22} strokeWidth={2.5} />
+                            <Icon name="repeat" size={18} color="#cbd5e1" />
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- TELEGRAM UI CONTENT ---
+        const AudaciTelegram = () => {
+            const [messages, setMessages] = useState([
+                { id: 1, text: "Привет! Я твой Audaci Bot. 🎵", isBot: true, time: "12:01" },
+                { id: 2, text: "Просто перешли мне любой трек или ссылку, и я мгновенно добавлю его в твою библиотеку.", isBot: true, time: "12:01" }
+            ]);
+
+            const sendMessage = (e) => {
+                if (e.key === 'Enter' && e.target.value.trim()) {
+                    const text = e.target.value;
+                    const newMsg = { id: Date.now(), text, isBot: false, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) };
+                    setMessages([...messages, newMsg]);
+                    e.target.value = '';
+                    
+                    setTimeout(() => {
+                        setMessages(prev => [...prev, { 
+                            id: Date.now() + 1, 
+                            text: `Принято! Трек "${text}" успешно проанализирован и добавлен в твой плеер. 🚀`, 
+                            isBot: true, 
+                            time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+                        }]);
+                    }, 1000);
+                }
+            };
+
+            return (
+                <div style={{ height: 'calc(100% - 44px)', display: 'flex', flexDirection: 'column', background: '#f0f2f5' }}>
+                    {/* Header */}
+                    <div style={{ height: '60px', background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', padding: '0 20px', gap: 14 }}>
+                        <Icon name="chevron-left" color="#007AFF" />
+                        <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-secondary))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '18px', fontWeight: 800, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>A</div>
+                        <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 800, fontSize: '16px', letterSpacing: '-0.3px' }}>Audaci</div>
+                            <div style={{ color: 'var(--brand-primary)', fontSize: '12px', fontWeight: 700 }}>online</div>
+                        </div>
+                        <Icon name="more-horizontal" color="#94a3b8" />
+                    </div>
+
+                    {/* Messages Area */}
+                    <div className="mac-scroll" style={{ flex: 1, padding: '20px', display: 'flex', flexDirection: 'column', gap: '4px', overflowY: 'auto' }}>
+                        {messages.map((m, i) => {
+                            const isBot = m.isBot;
+                            return (
+                                <motion.div 
+                                    key={m.id}
+                                    initial={{ opacity: 0, scale: 0.8, x: isBot ? -40 : 40, rotate: isBot ? -5 : 5 }}
+                                    animate={{ opacity: 1, scale: 1, x: 0, rotate: 0 }}
+                                    transition={bubbleSpring}
+                                    style={{ 
+                                        maxWidth: '85%',
+                                        alignSelf: isBot ? 'flex-start' : 'flex-end',
+                                        background: isBot ? '#fff' : '#007AFF',
+                                        color: isBot ? '#000' : '#fff',
+                                        padding: '10px 16px',
+                                        borderRadius: '20px',
+                                        borderBottomLeftRadius: isBot ? '4px' : '20px',
+                                        borderBottomRightRadius: isBot ? '20px' : '4px',
+                                        boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+                                        position: 'relative',
+                                        fontSize: '15px',
+                                        lineHeight: 1.4,
+                                        fontWeight: 500,
+                                        marginBottom: '8px'
+                                    }}
+                                >
+                                    {m.text}
+                                    <div style={{ 
+                                        fontSize: '10px', 
+                                        opacity: 0.5, 
+                                        textAlign: 'right', 
+                                        marginTop: '4px',
+                                        fontFamily: 'JetBrains Mono'
+                                    }}>
+                                        {m.time} { !isBot && <Icon name="check-check" size={12} strokeWidth={3} color="#fff" /> }
+                                    </div>
+                                </motion.div>
+                            )
+                        })}
+                    </div>
+
+                    {/* Input Area */}
+                    <div style={{ padding: '12px 16px 32px', background: '#fff', borderTop: '1px solid rgba(0,0,0,0.05)', display: 'flex', gap: 12, alignItems: 'center' }}>
+                        <Icon name="plus" color="#94a3b8" />
+                        <div style={{ flex: 1, background: '#f1f3f5', borderRadius: '20px', height: '40px', padding: '0 16px', display: 'flex', alignItems: 'center' }}>
+                            <input 
+                                placeholder="Сообщение" 
+                                onKeyDown={sendMessage}
+                                style={{ background: 'none', border: 'none', width: '100%', fontSize: '15px', outline: 'none' }} 
+                            />
+                            <Icon name="smile" size={20} color="#94a3b8" />
+                        </div>
+                        <Icon name="mic" color="#94a3b8" />
+                    </div>
+                </div>
+            );
+        };
+
+        // --- MAIN APP COMPONENT ---
+        const App = () => {
+            const [isPlaying, setIsPlaying] = useState(true);
+            const [selectedAlbum, setSelectedAlbum] = useState(0);
+            const { scrollYProgress } = useScroll();
+
+            // Cursor glow setup
+            const mouseX = useMotionValue(-500);
+            const mouseY = useMotionValue(-500);
+
+            useEffect(() => {
+                const handleMouseMove = (e) => {
+                    mouseX.set(e.clientX - 250); // 500px width/height offset
+                    mouseY.set(e.clientY - 250);
+                };
+                window.addEventListener("mousemove", handleMouseMove);
+                return () => window.removeEventListener("mousemove", handleMouseMove);
+            }, []);
+
+            const glowColor = ALBUMS_DATA[selectedAlbum].color;
+
+            const scrollTo = (id) => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            };
+
+            return (
+                <div style={{ minHeight: '100vh', paddingBottom: '100px' }}>
+                    {/* Global Background Glow Transition */}
+                    <motion.div 
+                        animate={{ 
+                            background: `radial-gradient(circle at 50% 0%, ${glowColor.replace(')', ' / 0.15)')}, transparent 70%)` 
+                        }}
+                        transition={{ duration: 1 }}
+                        style={{ position: 'fixed', top: 0, left: 0, right: 0, height: '100vh', zIndex: -2, pointerEvents: 'none' }}
+                    />
+
+                    {/* Premium Cursor Glow */}
+                    <motion.div
+                        style={{
+                            position: 'fixed',
+                            top: 0,
+                            left: 0,
+                            width: 500,
+                            height: 500,
+                            borderRadius: '50%',
+                            background: useMotionTemplate`radial-gradient(circle, ${glowColor.replace(')', ' / 0.1)')}, transparent 70%)`,
+                            x: mouseX,
+                            y: mouseY,
+                            pointerEvents: 'none',
+                            zIndex: 9999,
+                            mixBlendMode: 'multiply'
+                        }}
+                    />
+
+                    {/* Floating Nav */}
+                    <motion.nav 
+                        initial={{ y: -100, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        transition={playfulSpring}
+                        className="glass"
+                        style={{
+                            position: 'fixed',
+                            top: '24px',
+                            left: 0,
+                            right: 0,
+                            margin: '0 auto',
+                            width: '92%',
+                            maxWidth: '1200px',
+                            height: '72px',
+                            borderRadius: '24px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '0 32px',
+                            zIndex: 2000
+                        }}
+                    >
+                        <div 
+                            style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
+                            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                        >
+                            <div style={{ width: 36, height: 36, borderRadius: '12px', background: 'var(--brand-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px oklch(85% 0.25 150 / 0.3)' }}>
+                                <Icon name="play" size={20} color="#000" strokeWidth={3} />
+                            </div>
+                            <span style={{ fontWeight: 900, fontSize: '24px', letterSpacing: '-1.2px' }}>Audaci</span>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 40, fontWeight: 700, fontSize: '15px', color: 'var(--text-muted)' }}>
+                            <motion.a onClick={() => scrollTo('features')} whileHover={{ color: 'var(--text-main)', y: -1 }} style={{ cursor: 'pointer' }}>Возможности</motion.a>
+                            <motion.a onClick={() => scrollTo('integrations')} whileHover={{ color: 'var(--text-main)', y: -1 }} style={{ cursor: 'pointer' }}>Интеграции</motion.a>
+                            <motion.a onClick={() => scrollTo('support')} whileHover={{ color: 'var(--text-main)', y: -1 }} style={{ cursor: 'pointer' }}>Поддержка</motion.a>
+                        </div>
+
+                        <motion.button 
+                            onClick={() => scrollTo('integrations')}
+                            whileHover={{ scale: 1.05, y: -2, background: 'var(--brand-primary)', color: '#000' }}
+                            whileTap={{ scale: 0.95 }}
+                            transition={playfulSpring}
+                            style={{ 
+                                background: 'var(--text-main)', 
+                                color: '#fff', 
+                                border: 'none', 
+                                padding: '12px 28px', 
+                                borderRadius: '16px', 
+                                fontWeight: 800, 
+                                fontSize: '15px',
+                                cursor: 'pointer',
+                                transition: 'background 0.3s ease, color 0.3s ease',
+                                boxShadow: '0 10px 20px rgba(0,0,0,0.1)'
+                            }}
+                        >
+                            Попробовать Audaci
+                        </motion.button>
+                    </motion.nav>
+
+                    {/* Hero Section */}
+                    <section style={{ paddingTop: '180px', textAlign: 'center', paddingBottom: '100px' }}>
+                        <motion.div 
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            style={{ 
+                                display: 'inline-flex', 
+                                alignItems: 'center', 
+                                gap: 8, 
+                                background: '#fff', 
+                                padding: '8px 16px', 
+                                borderRadius: '100px', 
+                                fontSize: '13px', 
+                                fontWeight: 800, 
+                                border: '1px solid rgba(0,0,0,0.05)',
+                                color: 'var(--brand-secondary)',
+                                marginBottom: '32px',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
+                            }}
+                        >
+                            <span style={{ display: 'block', width: 8, height: 8, borderRadius: '50%', background: 'var(--brand-primary)', boxShadow: '0 0 10px var(--brand-primary)' }} />
+                            НОВОЕ В ВЕРСИИ 2.4 — PLAYFUL PREMIUM
+                        </motion.div>
+
+                        <motion.h1 
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={gentleSpring}
+                            style={{ fontSize: 'clamp(48px, 8vw, 96px)', fontWeight: 900, letterSpacing: '-4px', lineHeight: 0.9, marginBottom: '32px' }}
+                        >
+                            Звук, который <br /> <span className="premium-text-gradient">дышит.</span>
+                        </motion.h1>
+
+                        <motion.p 
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.3 }}
+                            style={{ maxWidth: '640px', margin: '0 auto 80px', fontSize: '22px', fontWeight: 500, color: 'var(--text-muted)', lineHeight: 1.5 }}
+                        >
+                            Первый в мире тактильный плеер. Умная аналитика настроения, интеграция с Telegram и интерфейс, который хочется касаться.
+                        </motion.p>
+
+                        <motion.div 
+                            initial={{ opacity: 0, y: 100 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ ...gentleSpring, delay: 0.4 }}
+                            style={{ perspective: 1500 }}
+                        >
+                            <MacosFrame title="Audaci Engine v2.4 (MacOS 14)" scrollYProgress={scrollYProgress}>
+                                <AudaciDesktop isPlaying={isPlaying} setIsPlaying={setIsPlaying} selectedAlbum={selectedAlbum} setSelectedAlbum={setSelectedAlbum} />
+                            </MacosFrame>
+                        </motion.div>
+                    </section>
+
+                    {/* Features Grid */}
+                    <section id="features" style={{ padding: '100px 5%', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '40px', maxWidth: '1400px', margin: '0 auto' }}>
+                        {[
+                            { 
+                                icon: 'zap', 
+                                title: 'Живой интерфейс', 
+                                desc: 'Каждый элемент UI реагирует на твою музыку. Цвета адаптируются к обложкам в реальном времени.',
+                                color: 'var(--brand-primary)'
+                            },
+                            { 
+                                icon: 'brain', 
+                                title: 'AI Диджей', 
+                                desc: 'Автоматический анализ настроения, тональности и энергии. Твой плеер знает, какой трек поставить следующим.',
+                                color: 'var(--brand-secondary)'
+                            },
+                            { 
+                                icon: 'cloud-lightning', 
+                                title: 'Облачная свобода', 
+                                desc: 'Скинь трек в Telegram — слушай его везде. Мгновенная синхронизация без лишних проводов.',
+                                color: 'var(--brand-accent)'
+                            }
+                        ].map((f, i) => (
+                            <motion.div 
+                                key={i}
+                                initial={{ opacity: 0, y: 30 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true, margin: "-50px" }}
+                                transition={{ delay: i * 0.15 }}
+                                whileHover={{ y: -12, scale: 1.02 }}
+                                className="glass"
+                                style={{ padding: '56px', borderRadius: '48px', position: 'relative', overflow: 'hidden' }}
+                            >
+                                <div style={{ 
+                                    width: 64, height: 64, borderRadius: '20px', background: f.color, color: '#000', 
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '32px',
+                                    boxShadow: `0 20px 40px ${f.color.replace(')', ' / 0.3)')}`
+                                }}>
+                                    <Icon name={f.icon} size={32} strokeWidth={2.5} color={f.color.includes('secondary') ? '#fff' : '#000'} />
+                                </div>
+                                <h3 style={{ fontSize: '28px', fontWeight: 900, marginBottom: '16px' }}>{f.title}</h3>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '18px', lineHeight: 1.6, fontWeight: 500 }}>{f.desc}</p>
+                            </motion.div>
+                        ))}
+                    </section>
+
+                    {/* Telegram Section */}
+                    <section id="integrations" style={{ padding: '150px 5%', textAlign: 'center', background: 'rgba(0,0,0,0.02)', borderRadius: '100px', margin: '0 20px' }}>
+                        <div style={{ maxWidth: '800px', margin: '0 auto 80px' }}>
+                            <h2 style={{ fontSize: '64px', fontWeight: 900, letterSpacing: '-2px', marginBottom: '24px' }}>Управляй через Telegram</h2>
+                            <p style={{ fontSize: '20px', color: 'var(--text-muted)', fontWeight: 500 }}>Загружай музыку, меняй плейлисты и получай уведомления о новых треках прямо в любимом мессенджере.</p>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                            <motion.div 
+                                initial={{ rotate: -5, y: 60, opacity: 0 }}
+                                whileInView={{ rotate: 0, y: 0, opacity: 1 }}
+                                viewport={{ margin: "-100px" }}
+                                transition={playfulSpring}
+                            >
+                                <IosFrame isPlaying={true}>
+                                    <AudaciTelegram />
+                                </IosFrame>
+                            </motion.div>
+                        </div>
+                    </section>
+
+                    <footer id="support" style={{ padding: '120px 5% 60px', textAlign: 'center' }}>
+                        <p style={{ color: 'var(--text-muted)', fontWeight: 600, fontSize: '14px', letterSpacing: '1px' }}>
+                            © 2026 AUDACI AUDIO. PROTOTYPED BY HUASHU-DESIGN.
+                        </p>
+                        <div style={{
+                            marginTop: 24,
+                            fontSize: 11, color: 'rgba(0,0,0,0.4)',
+                            letterSpacing: '0.15em', fontFamily: 'monospace',
+                            pointerEvents: 'none'
+                        }}>
+                            Created by Huashu-Design Protocol
+                        </div>
+                    </footer>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
     </script>
-
 </body>
-
 </html>

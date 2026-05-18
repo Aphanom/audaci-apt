@@ -1,8 +1,12 @@
 import re
+
+RAPIDFUZZ_AVAILABLE = False
 try:
     from rapidfuzz import process, fuzz
+    RAPIDFUZZ_AVAILABLE = True
 except ImportError:
     pass
+
 import core.db as db
 
 # Словарь жестких галлюцинаций для артистов
@@ -43,16 +47,22 @@ def analyze_intent(text):
     album_match = re.search(r'(?:включи|включить|поставь|включай)\s+альбом\s+(.*)', text)
     if album_match:
         target = album_match.group(1).strip()
-        for alias, real_name in ALBUM_ALIASES.items():
-            if fuzz.ratio(target, alias) > 80: 
-                return {"intent": "play_album", "entity": real_name}
-        
-        all_albums = db.get_all_albums()
-        if all_albums:
-            phonetic_albums = {to_cyrillic_slug(a["album"]): a["album"] for a in all_albums}
-            best_match = process.extractOne(target, phonetic_albums.keys(), scorer=fuzz.WRatio)
-            if best_match and best_match[1] > 70:
-                return {"intent": "play_album", "entity": phonetic_albums[best_match[0]]}
+        if RAPIDFUZZ_AVAILABLE:
+            for alias, real_name in ALBUM_ALIASES.items():
+                if fuzz.ratio(target, alias) > 80: 
+                    return {"intent": "play_album", "entity": real_name}
+            
+            all_albums = db.get_all_albums()
+            if all_albums:
+                phonetic_albums = {to_cyrillic_slug(a["album"]): a["album"] for a in all_albums}
+                best_match = process.extractOne(target, phonetic_albums.keys(), scorer=fuzz.WRatio)
+                if best_match and best_match[1] > 70:
+                    return {"intent": "play_album", "entity": phonetic_albums[best_match[0]]}
+        else:
+            # Простой фолбэк при отсутствии rapidfuzz
+            for alias, real_name in ALBUM_ALIASES.items():
+                if target in alias or alias in target:
+                    return {"intent": "play_album", "entity": real_name}
         return {"intent": "play_album", "entity": target}
 
     # 3. АРТИСТ
@@ -61,16 +71,22 @@ def analyze_intent(text):
         target = artist_match.group(1).strip()
         # Если в фразе есть "песню", значит это не артист, пропускаем дальше
         if "песню" not in target and "трек" not in target:
-            for alias, real_name in ARTIST_ALIASES.items():
-                if fuzz.ratio(target, alias) > 80: 
-                    return {"intent": "play_artist", "entity": real_name}
-            
-            all_artists = db.get_all_artists()
-            if all_artists and target:
-                phonetic_artists = {to_cyrillic_slug(artist): artist for artist in all_artists}
-                best_match = process.extractOne(target, phonetic_artists.keys(), scorer=fuzz.WRatio)
-                if best_match and best_match[1] > 70:
-                    return {"intent": "play_artist", "entity": phonetic_artists[best_match[0]]}
+            if RAPIDFUZZ_AVAILABLE:
+                for alias, real_name in ARTIST_ALIASES.items():
+                    if fuzz.ratio(target, alias) > 80: 
+                        return {"intent": "play_artist", "entity": real_name}
+                
+                all_artists = db.get_all_artists()
+                if all_artists and target:
+                    phonetic_artists = {to_cyrillic_slug(artist): artist for artist in all_artists}
+                    best_match = process.extractOne(target, phonetic_artists.keys(), scorer=fuzz.WRatio)
+                    if best_match and best_match[1] > 70:
+                        return {"intent": "play_artist", "entity": phonetic_artists[best_match[0]]}
+            else:
+                for alias, real_name in ARTIST_ALIASES.items():
+                    if target in alias or alias in target:
+                        return {"intent": "play_artist", "entity": real_name}
+                return {"intent": "play_artist", "entity": target}
 
     # 4. ПЕСНЯ / ТРЕК (С автокоррекцией твоих треков из логов!)
     search_match = re.search(r'(?:песню|трек)\s+(.*)', text)

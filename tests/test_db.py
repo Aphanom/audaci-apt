@@ -41,3 +41,13 @@ def test_get_tracks_by_vibe(db_conn):
     # "chill" vibe category includes "chill" keyword
     results = db.get_tracks_by_vibe("chill")
     assert "/path/to/chill.mp3" in results
+
+def test_get_tracks_by_vibe_sql_injection(db_conn):
+    # This query contains a SQL injection attempt. If it is parameterized,
+    # it will search for the literal string and return nothing without raising any sqlite3 exceptions.
+    injection_query = "'; DROP TABLE tracks; --"
+    try:
+        results = db.get_tracks_by_vibe(injection_query)
+        assert len(results) == 0
+    except Exception as e:
+        pytest.fail(f"get_tracks_by_vibe is vulnerable to SQL injection: {e}")
