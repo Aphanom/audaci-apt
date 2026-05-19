@@ -49,11 +49,11 @@ Plans:
 
 ### Phase 3: Premium UI Enhancements and Playlists
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Implement premium UI themes (light/dark mode toggle), expose user playlists, enable playback remote control (Play/Pause, Next, Prev), and fetch currently playing track details via the Telegram bot over WebSocket.
+**Requirements**: UI-PREMIUM-01, PLAYLIST-BOT-01, BOT-CONTROL-01, BOT-NOWPLAYING-01
 **Depends on:** Phase 2
-**Plans:** 0 plans
+**Plans:** 1 plan
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 3 to break down)
+- [ ] 03-01: Implement theme toggling with instant updates, Telegram bot playlists query, remote control endpoints, and currently playing track info sync.

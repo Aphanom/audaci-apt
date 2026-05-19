@@ -21,6 +21,15 @@
 
 - [x] **CONFIG-PATH-01**: Settings (`.audaci_settings.json`) and playlists (`.audaci_playlists.json`) JSON files are relocated to standard hidden folder `~/.audaci/`.
 
+## v2 Requirements
+
+### UI & Playlists Premium Features
+
+- [ ] **UI-PREMIUM-01**: Implement light/dark theme switching that instantly updates the UI, sidebar, and playlist views.
+- [ ] **PLAYLIST-BOT-01**: Allow users to query and view their desktop playlist names and track counts directly via the Telegram bot.
+- [ ] **BOT-CONTROL-01**: Implement playback remote control (Play/Pause, Next, Prev) triggers sent from Telegram bot to Flet client via WebSocket.
+- [ ] **BOT-NOWPLAYING-01**: Allow users to retrieve the currently playing track info ("Now Playing") from Flet client to Telegram bot via WebSocket.
+
 ## Traceability
 
 | Requirement | Phase | Status |
@@ -32,12 +41,16 @@
 | BOT-STATUS-01 | Phase 2 | Passed |
 | BOT-UNLINK-01 | Phase 2 | Passed |
 | CONFIG-PATH-01 | Phase 2 | Passed |
+| UI-PREMIUM-01 | Phase 3 | Pending |
+| PLAYLIST-BOT-01 | Phase 3 | Pending |
+| BOT-CONTROL-01 | Phase 3 | Pending |
+| BOT-NOWPLAYING-01 | Phase 3 | Pending |
 
 **Coverage:**
-- v1 requirements: 7 total
-- Mapped to phases: 7
+- v1 & v2 requirements: 11 total
+- Mapped to phases: 11
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-05-18*
-*Last updated: 2026-05-18 after initial definition*
+*Last updated: 2026-05-19 after Phase 3 definition*

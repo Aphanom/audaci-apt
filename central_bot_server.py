@@ -94,6 +94,8 @@ def db_pop_from_queue(sync_code: str) -> Optional[str]:
 
 # Активные WebSocket соединения: sync_code -> list[WebSocket]
 active_connections: Dict[str, List[WebSocket]] = {}
+# Ожидающие ответов WebSocket запросы: request_id -> Future
+pending_requests: Dict[str, asyncio.Future] = {}
 
 async def notify_clients(sync_code: str):
     if sync_code in active_connections:
@@ -135,7 +137,13 @@ def get_main_keyboard() -> ReplyKeyboardMarkup:
     kb = [
         [
             KeyboardButton(text="📊 Статус плеера"),
-            KeyboardButton(text="🔄 Как синхронизировать")
+            KeyboardButton(text="🎵 Сейчас играет"),
+            KeyboardButton(text="📋 Мои плейлисты")
+        ],
+        [
+            KeyboardButton(text="⏮️ Предыдущий трек"),
+            KeyboardButton(text="⏯️ Play/Pause"),
+            KeyboardButton(text="⏭️ Следующий трек")
         ],
         [
             KeyboardButton(text="❌ Отключить плеер"),
@@ -204,6 +212,11 @@ async def cmd_help(message: Message):
         "3. Отправляйте боту любые файлы формата MP3, FLAC, M4A, WAV.\n\n"
         "**Команды:**\n"
         "/status — Проверить статус подключения\n"
+        "/playlists — Список ваших плейлистов\n"
+        "/nowplaying — Что сейчас играет\n"
+        "/toggle — Воспроизведение / Пауза\n"
+        "/next — Следующий трек\n"
+        "/prev — Предыдущий трек\n"
         "/unlink — Отключить плеер от Telegram-бота\n"
         "/help — Справка",
         parse_mode="Markdown",
@@ -222,6 +235,164 @@ async def cmd_sync_info(message: Message):
         parse_mode="Markdown",
         reply_markup=get_main_keyboard()
     )
+
+@router.message(Command("playlists"))
+@router.message(F.text == "📋 Мои плейлисты")
+async def cmd_playlists(message: Message):
+    user_id = message.from_user.id
+    sync_code = await asyncio.to_thread(db_get_sync_code, user_id)
+    if not sync_code:
+        await message.answer("❌ Вы не синхронизированы с приложением. Пожалуйста, отсканируйте QR-код в Audaci.")
+        return
+
+    is_online = sync_code in active_connections and len(active_connections[sync_code]) > 0
+    if not is_online:
+        await message.answer("🔴 Плеер не в сети. Невозможно получить список плейлистов.")
+        return
+
+    req_id = str(uuid.uuid4())
+    loop = asyncio.get_running_loop()
+    fut = loop.create_future()
+    pending_requests[req_id] = fut
+
+    ws_client = active_connections[sync_code][0]
+    try:
+        await ws_client.send_json({
+            "event": "get_playlists",
+            "request_id": req_id
+        })
+        
+        playlists = await asyncio.wait_for(fut, timeout=5.0)
+        if not playlists:
+            await message.answer("📋 **Ваши плейлисты в Audaci:**\n\nУ вас пока нет плейлистов.")
+        else:
+            text = "📋 **Ваши плейлисты в Audaci:**\n\n"
+            for idx, pl in enumerate(playlists, 1):
+                text += f"{idx}. {pl['name']} ({pl['track_count']} треков)\n"
+            await message.answer(text)
+    except asyncio.TimeoutError:
+        await message.answer("⚠️ Не удалось получить ответ от плеера (таймаут).")
+    except Exception as e:
+        logger.error(f"Error requesting playlists: {e}")
+        await message.answer("❌ Произошла ошибка при получении плейлистов.")
+    finally:
+        pending_requests.pop(req_id, None)
+
+@router.message(Command("nowplaying"))
+@router.message(F.text == "🎵 Сейчас играет")
+async def cmd_nowplaying(message: Message):
+    user_id = message.from_user.id
+    sync_code = await asyncio.to_thread(db_get_sync_code, user_id)
+    if not sync_code:
+        await message.answer("❌ Вы не синхронизированы с приложением. Пожалуйста, отсканируйте QR-код в Audaci.")
+        return
+
+    is_online = sync_code in active_connections and len(active_connections[sync_code]) > 0
+    if not is_online:
+        await message.answer("🔴 Плеер не в сети. Невозможно получить информацию о треке.")
+        return
+
+    req_id = str(uuid.uuid4())
+    loop = asyncio.get_running_loop()
+    fut = loop.create_future()
+    pending_requests[req_id] = fut
+
+    ws_client = active_connections[sync_code][0]
+    try:
+        await ws_client.send_json({
+            "event": "get_now_playing",
+            "request_id": req_id
+        })
+        
+        track = await asyncio.wait_for(fut, timeout=5.0)
+        if not track or not track.get("title"):
+            await message.answer("🎵 **Сейчас играет:**\n\nВоспроизведение остановлено.")
+        else:
+            artist = track.get("artist", "Неизвестный исполнитель")
+            title = track.get("title", "Без названия")
+            await message.answer(f"🎵 **Сейчас играет:**\n\n🎤 Исполнитель: {artist}\n💿 Трек: {title}")
+    except asyncio.TimeoutError:
+        await message.answer("⚠️ Не удалось получить ответ от плеера (таймаут).")
+    except Exception as e:
+        logger.error(f"Error requesting now playing: {e}")
+        await message.answer("❌ Произошла ошибка при получении информации о треке.")
+    finally:
+        pending_requests.pop(req_id, None)
+
+@router.message(Command("toggle"))
+@router.message(F.text == "⏯️ Play/Pause")
+async def cmd_control_toggle(message: Message):
+    user_id = message.from_user.id
+    sync_code = await asyncio.to_thread(db_get_sync_code, user_id)
+    if not sync_code:
+        await message.answer("❌ Вы не синхронизированы с приложением.")
+        return
+
+    is_online = sync_code in active_connections and len(active_connections[sync_code]) > 0
+    if not is_online:
+        await message.answer("🔴 Плеер не в сети. Невозможно отправить команду.")
+        return
+
+    ws_client = active_connections[sync_code][0]
+    try:
+        await ws_client.send_json({
+            "event": "control",
+            "action": "toggle"
+        })
+        await message.answer("⏯️ Команда отправлена: Воспроизведение / Пауза")
+    except Exception as e:
+        logger.error(f"Error sending control event: {e}")
+        await message.answer("❌ Ошибка при отправке команды.")
+
+@router.message(Command("next"))
+@router.message(F.text == "⏭️ Следующий трек")
+async def cmd_control_next(message: Message):
+    user_id = message.from_user.id
+    sync_code = await asyncio.to_thread(db_get_sync_code, user_id)
+    if not sync_code:
+        await message.answer("❌ Вы не синхронизированы с приложением.")
+        return
+
+    is_online = sync_code in active_connections and len(active_connections[sync_code]) > 0
+    if not is_online:
+        await message.answer("🔴 Плеер не в сети. Невозможно отправить команду.")
+        return
+
+    ws_client = active_connections[sync_code][0]
+    try:
+        await ws_client.send_json({
+            "event": "control",
+            "action": "next"
+        })
+        await message.answer("⏭️ Команда отправлена: Следующий трек")
+    except Exception as e:
+        logger.error(f"Error sending control event: {e}")
+        await message.answer("❌ Ошибка при отправке команды.")
+
+@router.message(Command("prev"))
+@router.message(F.text == "⏮️ Предыдущий трек")
+async def cmd_control_prev(message: Message):
+    user_id = message.from_user.id
+    sync_code = await asyncio.to_thread(db_get_sync_code, user_id)
+    if not sync_code:
+        await message.answer("❌ Вы не синхронизированы с приложением.")
+        return
+
+    is_online = sync_code in active_connections and len(active_connections[sync_code]) > 0
+    if not is_online:
+        await message.answer("🔴 Плеер не в сети. Невозможно отправить команду.")
+        return
+
+    ws_client = active_connections[sync_code][0]
+    try:
+        await ws_client.send_json({
+            "event": "control",
+            "action": "prev"
+        })
+        await message.answer("⏮️ Команда отправлена: Предыдущий трек")
+    except Exception as e:
+        logger.error(f"Error sending control event: {e}")
+        await message.answer("❌ Ошибка при отправке команды.")
 
 @router.message(Command("unlink"))
 @router.message(F.text == "❌ Отключить плеер")
@@ -387,7 +558,21 @@ async def websocket_endpoint(websocket: WebSocket, sync_code: str):
             
         while True:
             # Ожидаем сообщений (пинг) от клиента, чтобы держать соединение открытым
-            data = await websocket.receive_text()
+            msg = await websocket.receive_text()
+            import json
+            try:
+                data = json.loads(msg)
+                event = data.get("event")
+                if event == "playlists_data":
+                    req_id = data.get("request_id")
+                    if req_id in pending_requests:
+                        pending_requests[req_id].set_result(data.get("playlists", []))
+                elif event == "now_playing_data":
+                    req_id = data.get("request_id")
+                    if req_id in pending_requests:
+                        pending_requests[req_id].set_result(data.get("track", {}))
+            except Exception as e:
+                logger.error(f"Error parsing incoming client websocket message: {e}")
     except Exception as e:
         logger.info(f"WebSocket disconnected or error for code '{sync_code}': {e}")
     finally:

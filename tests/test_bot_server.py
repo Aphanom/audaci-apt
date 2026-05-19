@@ -172,3 +172,53 @@ def test_websocket_unlink_notification():
         assert data == {"event": "unlinked"}
 
 
+def test_websocket_playlists_request_and_response():
+    sync_code = "WS-PLAYLISTS-TEST"
+    with client.websocket_connect(f"/api/ws/sync/{sync_code}") as websocket:
+        import central_bot_server
+        import asyncio
+        
+        req_id = "test-req-id"
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        fut = loop.create_future()
+        central_bot_server.pending_requests[req_id] = fut
+        
+        websocket.send_json({
+            "event": "playlists_data",
+            "request_id": req_id,
+            "playlists": [{"name": "Favorites", "track_count": 5}]
+        })
+        
+        loop.run_until_complete(asyncio.wait_for(fut, timeout=2.0))
+        assert fut.done()
+        assert fut.result() == [{"name": "Favorites", "track_count": 5}]
+        
+        central_bot_server.pending_requests.pop(req_id, None)
+
+
+def test_websocket_now_playing_request_and_response():
+    sync_code = "WS-NOWPLAYING-TEST"
+    with client.websocket_connect(f"/api/ws/sync/{sync_code}") as websocket:
+        import central_bot_server
+        import asyncio
+        
+        req_id = "test-nowplaying-id"
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        fut = loop.create_future()
+        central_bot_server.pending_requests[req_id] = fut
+        
+        websocket.send_json({
+            "event": "now_playing_data",
+            "request_id": req_id,
+            "track": {"title": "Song 1", "artist": "Artist 1"}
+        })
+        
+        loop.run_until_complete(asyncio.wait_for(fut, timeout=2.0))
+        assert fut.done()
+        assert fut.result() == {"title": "Song 1", "artist": "Artist 1"}
+        
+        central_bot_server.pending_requests.pop(req_id, None)
+
+

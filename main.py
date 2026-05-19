@@ -4820,6 +4820,43 @@ def main(page: ft.Page):
                                 save_settings()
                                 show_snackbar("❌ Синхронизация с Telegram отключена через бот.")
                                 break
+                            elif data.get("event") == "get_playlists":
+                                request_id = data.get("request_id")
+                                playlists_list = []
+                                try:
+                                    for pl_name, pl_data in list(user_playlists.items()):
+                                        playlists_list.append({
+                                            "name": pl_name,
+                                            "track_count": len(pl_data.get("tracks", []))
+                                        })
+                                except Exception as pl_err:
+                                    print(f"[Audaci Sync] Error reading playlists: {pl_err}")
+                                await websocket.send(json.dumps({
+                                    "event": "playlists_data",
+                                    "request_id": request_id,
+                                    "playlists": playlists_list
+                                }))
+                            elif data.get("event") == "get_now_playing":
+                                request_id = data.get("request_id")
+                                track_info = {}
+                                if audio.current_track_path:
+                                    track_info = {
+                                        "title": current_track_title.value or os.path.basename(audio.current_track_path),
+                                        "artist": current_track_artist.value or "Неизвестен"
+                                    }
+                                await websocket.send(json.dumps({
+                                    "event": "now_playing_data",
+                                    "request_id": request_id,
+                                    "track": track_info
+                                }))
+                            elif data.get("event") == "control":
+                                action = data.get("action")
+                                if action == "toggle":
+                                    page.run_task(toggle_play)
+                                elif action == "next":
+                                    page.run_task(play_next)
+                                elif action == "prev":
+                                    page.run_task(play_prev)
                             elif data.get("event") == "new_track":
                                 print("[Audaci Sync] Получено уведомление о новом треке!")
                                 # Скачиваем пока есть треки

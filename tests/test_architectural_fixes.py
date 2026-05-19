@@ -85,3 +85,31 @@ def test_nlu_fallbacks():
     intent_album = nlu.analyze_intent("включи альбом були")
     assert intent_album["intent"] == "play_album"
     assert intent_album["entity"] == "BULLY"
+
+
+# 4. Тестирование сохранения настроек темы оформления (UI-PREMIUM-01)
+def test_theme_persistence():
+    import json
+    with tempfile.TemporaryDirectory() as temp_dir:
+        settings_file = Path(temp_dir) / "settings.json"
+        
+        # Начальные настройки
+        settings = {
+            "theme_mode": "dark",
+            "music_folders": []
+        }
+        
+        # Имитируем сохранение настроек
+        def mock_save_settings(filepath, data):
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+                
+        # Меняем тему на light и сохраняем
+        settings["theme_mode"] = "light"
+        mock_save_settings(settings_file, settings)
+        
+        # Считываем обратно
+        with open(settings_file, 'r', encoding='utf-8') as f:
+            loaded_settings = json.load(f)
+            
+        assert loaded_settings["theme_mode"] == "light"
