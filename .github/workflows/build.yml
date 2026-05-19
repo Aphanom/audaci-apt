@@ -43,7 +43,7 @@ jobs:
       - name: Скачивание модели
         if: steps.vosk-cache.outputs.cache-hit != 'true'
         run: |
-          curl -L -o model.zip "${{ env.VOSK_MODEL_URL }}"
+          curl -L --ssl-no-revoke --retry 5 --retry-delay 5 --connect-timeout 30 -o model.zip "${{ env.VOSK_MODEL_URL }}"
           unzip -q model.zip
           mv "${{ env.VOSK_MODEL_DIR }}" model
           rm model.zip
@@ -61,7 +61,15 @@ jobs:
 
       - name: Скачивание и упаковка VLC для Windows
         run: |
-          powershell -Command "Invoke-WebRequest -Uri 'https://get.videolan.org/vlc/3.0.21/win64/vlc-3.0.21-win64.zip' -OutFile 'vlc-win64.zip'"
+          PRIMARY_URL="https://get.videolan.org/vlc/3.0.21/win64/vlc-3.0.21-win64.zip"
+          BACKUP_URL="https://ftp.halifax.rwth-aachen.de/videolan/vlc/3.0.21/win64/vlc-3.0.21-win64.zip"
+          echo "Downloading VLC..."
+          if curl -L --ssl-no-revoke --retry 5 --retry-delay 5 --connect-timeout 30 -o vlc-win64.zip "$PRIMARY_URL"; then
+            echo "Successfully downloaded VLC from primary server."
+          else
+            echo "Primary server failed. Trying backup mirror..."
+            curl -L --ssl-no-revoke --retry 5 --retry-delay 5 --connect-timeout 30 -o vlc-win64.zip "$BACKUP_URL"
+          fi
           unzip -q vlc-win64.zip
           mkdir -p build/windows/vlc
           cp vlc-3.0.21/libvlc.dll build/windows/vlc/
@@ -111,7 +119,7 @@ jobs:
       - name: Скачивание модели
         if: steps.vosk-cache.outputs.cache-hit != 'true'
         run: |
-          curl -L -o model.zip "${{ env.VOSK_MODEL_URL }}"
+          curl -L --retry 5 --retry-delay 5 --connect-timeout 30 -o model.zip "${{ env.VOSK_MODEL_URL }}"
           unzip -q model.zip
           mv "${{ env.VOSK_MODEL_DIR }}" model
           rm model.zip
@@ -130,12 +138,19 @@ jobs:
           # 2. Скачивание и упаковка VLC для macOS
           ARCH=$(uname -m)
           if [ "$ARCH" = "arm64" ]; then
-            VLC_URL="https://get.videolan.org/vlc/3.0.21/macosx/vlc-3.0.21-arm64.dmg"
+            VLC_PATH="vlc/3.0.21/macosx/vlc-3.0.21-arm64.dmg"
           else
-            VLC_URL="https://get.videolan.org/vlc/3.0.21/macosx/vlc-3.0.21-intel64.dmg"
+            VLC_PATH="vlc/3.0.21/macosx/vlc-3.0.21-intel64.dmg"
           fi
-          echo "Downloading VLC from $VLC_URL..."
-          curl -L -o vlc-macos.dmg "$VLC_URL"
+          PRIMARY_URL="https://get.videolan.org/$VLC_PATH"
+          BACKUP_URL="https://ftp.halifax.rwth-aachen.de/videolan/$VLC_PATH"
+          echo "Downloading VLC..."
+          if curl -L --retry 5 --retry-delay 5 --connect-timeout 30 -o vlc-macos.dmg "$PRIMARY_URL"; then
+            echo "Successfully downloaded VLC from primary server."
+          else
+            echo "Primary server failed. Trying backup mirror..."
+            curl -L --retry 5 --retry-delay 5 --connect-timeout 30 -o vlc-macos.dmg "$BACKUP_URL"
+          fi
           
           echo "Mounting VLC DMG..."
           hdiutil attach vlc-macos.dmg -mountpoint /Volumes/VLC
@@ -240,7 +255,7 @@ jobs:
       - name: Скачивание модели
         if: steps.vosk-cache.outputs.cache-hit != 'true'
         run: |
-          curl -L -o model.zip "${{ env.VOSK_MODEL_URL }}"
+          curl -L --retry 5 --retry-delay 5 --connect-timeout 30 -o model.zip "${{ env.VOSK_MODEL_URL }}"
           unzip -q model.zip
           mv "${{ env.VOSK_MODEL_DIR }}" model
           rm model.zip
