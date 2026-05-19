@@ -37,3 +37,8 @@ a.txt
 session.db
 Telegram Music/
 *.session-journal
+
+# Локальные медиа-файлы и данные сервера
+server_data/
+covers/
+
