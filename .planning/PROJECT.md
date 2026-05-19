@@ -16,16 +16,17 @@ Simple, responsive, and seamless cross-device synchronization of a user's local 
 - ✓ Multi-threaded SQLite library scanning and tag extraction (Mutagen) — Phase 0
 - ✓ Multi-threaded web lyrics lookup (LRCLIB) and vocal removal/karaoke overlay — Phase 0
 - ✓ Basic Telegram audio file download receiver and socket polling sync system — Phase 0
+- ✓ UI Scalability and Resizing (UI-SCALE-01, UI-SCALE-02) — Phase 1 & 2
+- ✓ Last.fm Auto Cover Downloader & Injector (BOT-COVER-01) — Phase 1 & 2
+- ✓ Telegram Interactive Options & Keyboard (BOT-KEYBOARD-01, BOT-STATUS-01, BOT-UNLINK-01) — Phase 1 & 2
+- ✓ Centralized User Config Path Migration (CONFIG-PATH-01) — Phase 1 & 2
+- ✓ Theme State Persistence (UI-PREMIUM-01) — Phase 3
+- ✓ Remote Playlists & Now Playing Querying (PLAYLIST-BOT-01, BOT-NOWPLAYING-01) — Phase 3
+- ✓ Playback Remote Control (BOT-CONTROL-01) — Phase 3
 
 ### Active
 
-- [ ] **UI-SCALE-01**: Solve bottom button overflow/cut-off in Fullscreen / Focus Mode on smaller windows by dynamically adjusting sizes.
-- [ ] **UI-SCALE-02**: Prevent the `focus_btn` from being clipped/cut off upon regular window startup.
-- [ ] **BOT-COVER-01**: Query Last.fm's track.getInfo API, download image bytes, and automatically embed cover art in track metadata if a Telegram uploaded track lacks cover art.
-- [ ] **BOT-KEYBOARD-01**: Add a rich interactive keyboard layout in Telegram for synchronized and unsynchronized states.
-- [ ] **BOT-STATUS-01**: Display active desktop player connection status (`🟢 В сети (Подключено)` or `🔴 Оффлайн (Не в сети)`) inside the Telegram bot.
-- [ ] **BOT-UNLINK-01**: Add unlinking support directly from the Telegram bot.
-- [ ] **CONFIG-PATH-01**: Move settings and playlists JSON files to standard hidden folder `~/.audaci/` to adhere to Rule 5 of the architectural rules.
+- None (All planned requirements for the current milestone are fully validated)
 
 ### Out of Scope
 
@@ -52,8 +53,8 @@ Audaci utilizes:
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Use Last.fm for Missing Cover Art | Robust, globally available metadata provider that doesn't require complex image scraping | — Pending |
-| Standardize Paths to ~/.audaci/ | Avoid polluting home directory and comply with user-defined rules | — Pending |
+| Use Last.fm for Missing Cover Art | Robust, globally available metadata provider that doesn't require complex image scraping | Implemented |
+| Standardize Paths to ~/.audaci/ | Avoid polluting home directory and comply with user-defined rules | Implemented |
 
 ---
-*Last updated: 2026-05-18 after Milestone 1 setup*
+*Last updated: 2026-05-19 after Phase 3 completion*
