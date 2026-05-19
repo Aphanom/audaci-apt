@@ -4806,6 +4806,15 @@ def main(page: ft.Page):
             
             ws_url = server_url.replace("http://", "ws://").replace("https://", "wss://") + f"/api/ws/sync/{sync_code}"
             print(f"[Audaci Sync] Старт WebSocket: sync_code='{sync_code}', ws_url='{ws_url}'")
+            
+            async def async_toggle_play():
+                toggle_play()
+
+            async def async_play_next():
+                play_next()
+
+            async def async_play_prev():
+                play_prev()
                     
             while True:
                 try:
@@ -4852,11 +4861,11 @@ def main(page: ft.Page):
                             elif data.get("event") == "control":
                                 action = data.get("action")
                                 if action == "toggle":
-                                    page.run_task(toggle_play)
+                                    page.run_task(async_toggle_play)
                                 elif action == "next":
-                                    page.run_task(play_next)
+                                    page.run_task(async_play_next)
                                 elif action == "prev":
-                                    page.run_task(play_prev)
+                                    page.run_task(async_play_prev)
                             elif data.get("event") == "new_track":
                                 print("[Audaci Sync] Получено уведомление о новом треке!")
                                 # Скачиваем пока есть треки
