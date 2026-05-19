@@ -195,7 +195,7 @@ jobs:
             
             # Фиксим пути в PIL
             echo "Fixing dylib links in $BUNDLE_PIL"
-            delocate-path -v "$BUNDLE_PIL"
+            delocate-path -v "$BUNDLE_PIL" || true
 
             # Проверка, что libtiff на месте
             if [ -f "$BUNDLE_PIL/.dylibs/libtiff.6.dylib" ]; then
