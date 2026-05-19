@@ -41,4 +41,8 @@ Telegram Music/
 # Локальные медиа-файлы и данные сервера
 server_data/
 covers/
+*_build-*.txt
+*.txt
+!requirements.txt
+
 

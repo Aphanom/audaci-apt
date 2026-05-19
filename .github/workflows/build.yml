@@ -61,7 +61,7 @@ jobs:
 
       - name: Скачивание и упаковка VLC для Windows
         run: |
-          curl -L -o vlc-win64.zip "https://get.videolan.org/vlc/3.0.21/win64/vlc-3.0.21-win64.zip"
+          powershell -Command "Invoke-WebRequest -Uri 'https://get.videolan.org/vlc/3.0.21/win64/vlc-3.0.21-win64.zip' -OutFile 'vlc-win64.zip'"
           unzip -q vlc-win64.zip
           mkdir -p build/windows/vlc
           cp vlc-3.0.21/libvlc.dll build/windows/vlc/
@@ -151,8 +151,8 @@ jobs:
           hdiutil detach /Volumes/VLC
           rm vlc-macos.dmg
           
-          echo "Delocating bundled VLC libraries..."
-          delocate-path -v build/macos/Audaci.app/Contents/MacOS/vlc
+          echo "Adding loader path to VLC libraries..."
+          install_name_tool -add_rpath "@loader_path" build/macos/Audaci.app/Contents/MacOS/vlc/libvlc.dylib || true
           
           # 3. Находим все папки PIL внутри собранного бандла
           # serious_python может иметь несколько копий или специфичную структуру
