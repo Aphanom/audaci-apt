@@ -1,60 +1,39 @@
 # Roadmap: Audaci
 
-## Overview
+## Milestones
 
-Audaci's current milestone improves the desktop player UI layout and scalability while enriching the Telegram bot's functionality with automatic cover art fetching and status keyboards.
+- ✅ **v1.0 MVP** — UI Scalability & basic Telegram Sync (shipped 2026-05-18)
+- ✅ **v1.1 Premium UI & Playlists** — Theme Switching, Remote Playback Controls, Playlists Querying (shipped 2026-05-19)
+- 🚧 **v1.2 Release Infrastructure** — Cross-Platform Build & Packaging (in progress)
 
 ## Phases
 
-- [x] **Phase 1: UI Scalability & Telegram Bot Enhancements** - Complete all UI scaling fixes, cover art fetching, bot reply keyboards, player connection status, and directory settings path compliance.
+<details>
+<summary>✅ v1.0 MVP & v1.1 Premium UI — SHIPPED</summary>
 
-## Phase Details
+- [x] Phase 1: UI Scalability & Telegram Bot Enhancements — completed 2026-05-18
+- [x] Phase 2: UI Scalability & Telegram Bot Enhancements — completed 2026-05-18
+- [x] Phase 3: Premium UI Enhancements and Playlists — completed 2026-05-19
 
-### Phase 1: UI Scalability & Telegram Bot Enhancements
+</details>
 
-**Goal**: Deliver a robust, adaptive, and premium user experience for both the desktop player and the Telegram bot synchronization system.
-**Depends on**: Nothing (first phase of the current milestone)
-**Requirements**: UI-SCALE-01, UI-SCALE-02, BOT-COVER-01, BOT-KEYBOARD-01, BOT-STATUS-01, BOT-UNLINK-01, CONFIG-PATH-01
-**Success Criteria**:
+### 🚧 v1.2 Release Infrastructure
 
-  1. The Flet player's right block is fully visible on startup without clipping the fullscreen button.
-  2. In Focus Mode, all buttons and text scale down smoothly without overflow on smaller window heights.
-  3. Audaci desktop client automatically downloads and embeds missing cover art via Last.fm API.
-  4. The Telegram bot presents status information, unlinking triggers, and rich interactive button grids.
-  5. Playlists and settings JSON files reside strictly inside the `~/.audaci/` folder.
-
-**Plans**: 1 plan
+- [ ] Phase 4: Cross-Platform Build & Packaging System
+  - **Goal**: Make the GitHub Actions build (`build.yml`) work out-of-the-box for macOS, Windows, and Linux, package all non-python dependencies (VLC, PortAudio, Vosk dylib/dll), and produce running executables.
+  - **Depends on**: Phase 3
+  - **Requirements**: BUILD-SYS-01, BUILD-SYS-02, BUILD-SYS-03
+  - **Plans**: 1 plan
 
 Plans:
 
-- [x] 01-01: Implement UI scalability fixes, Last.fm cover art downloader, bot keyboards, and settings path migration.
+- [ ] 04-01: Update and configure build.yml workflow for multi-platform dependency embedding (VLC, PortAudio, Vosk) and build automation.
 
 ## Progress
 
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. UI Scalability & Telegram Bot Enhancements | 1/1 | Completed | 2026-05-18 |
-| 2. UI Scalability & Telegram Bot Enhancements | 1/1 | Completed | 2026-05-18 |
-| 3. Premium UI Enhancements and Playlists     | 1/1 | Completed | 2026-05-19 |
-
-### Phase 2: UI Scalability & Telegram Bot Enhancements
-
-**Goal:** Deliver, consolidate, and verify a robust, adaptive, and premium user experience for both the desktop player and the Telegram bot synchronization system.
-**Requirements**: UI-SCALE-01, UI-SCALE-02, BOT-COVER-01, BOT-KEYBOARD-01, BOT-STATUS-01, BOT-UNLINK-01, CONFIG-PATH-01
-**Depends on:** Phase 1
-**Plans:** 1 plan
-
-Plans:
-
-- [x] 02-01: Implement UI scalability fixes, Last.fm cover art downloader, bot keyboards, and settings path migration.
-
-### Phase 3: Premium UI Enhancements and Playlists
-
-**Goal:** Implement premium UI themes (light/dark mode toggle), expose user playlists, enable playback remote control (Play/Pause, Next, Prev), and fetch currently playing track details via the Telegram bot over WebSocket.
-**Requirements**: UI-PREMIUM-01, PLAYLIST-BOT-01, BOT-CONTROL-01, BOT-NOWPLAYING-01
-**Depends on:** Phase 2
-**Plans:** 1 plan
-
-Plans:
-
-- [x] 03-01: Implement theme toggling with instant updates, Telegram bot playlists query, remote control endpoints, and currently playing track info sync.
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 1. UI Scalability & Telegram Bot Enhancements | v1.0 | 1/1 | Complete | 2026-05-18 |
+| 2. UI Scalability & Telegram Bot Enhancements | v1.1 | 1/1 | Complete | 2026-05-18 |
+| 3. Premium UI Enhancements and Playlists     | v1.1 | 1/1 | Complete | 2026-05-19 |
+| 4. Cross-Platform Build & Packaging System   | v1.2 | 0/1 | Not started | - |
