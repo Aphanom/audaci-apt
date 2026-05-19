@@ -59,6 +59,16 @@ jobs:
           PYTHONUTF8: 1
         run: flet build windows --product "Audaci" --no-rich-output
 
+      - name: Скачивание и упаковка VLC для Windows
+        run: |
+          curl -L -o vlc-win64.zip "https://get.videolan.org/vlc/3.0.21/win64/vlc-3.0.21-win64.zip"
+          unzip -q vlc-win64.zip
+          mkdir -p build/windows/vlc
+          cp vlc-3.0.21/libvlc.dll build/windows/vlc/
+          cp vlc-3.0.21/libvlccore.dll build/windows/vlc/
+          cp -r vlc-3.0.21/plugins build/windows/vlc/
+          rm -rf vlc-3.0.21 vlc-win64.zip
+
       - name: Артефакт
         uses: actions/upload-artifact@v4
         with:
@@ -117,7 +127,34 @@ jobs:
           # 1. Собираем приложение
           flet build macos --product "Audaci" --no-rich-output
           
-          # 2. Находим все папки PIL внутри собранного бандла
+          # 2. Скачивание и упаковка VLC для macOS
+          ARCH=$(uname -m)
+          if [ "$ARCH" = "arm64" ]; then
+            VLC_URL="https://get.videolan.org/vlc/3.0.21/macosx/vlc-3.0.21-arm64.dmg"
+          else
+            VLC_URL="https://get.videolan.org/vlc/3.0.21/macosx/vlc-3.0.21-intel64.dmg"
+          fi
+          echo "Downloading VLC from $VLC_URL..."
+          curl -L -o vlc-macos.dmg "$VLC_URL"
+          
+          echo "Mounting VLC DMG..."
+          hdiutil attach vlc-macos.dmg -mountpoint /Volumes/VLC
+          
+          mkdir -p build/macos/Audaci.app/Contents/MacOS/vlc
+          
+          echo "Copying VLC libraries and plugins..."
+          cp /Volumes/VLC/VLC.app/Contents/MacOS/lib/libvlc.dylib build/macos/Audaci.app/Contents/MacOS/vlc/
+          cp /Volumes/VLC/VLC.app/Contents/MacOS/lib/libvlccore.dylib build/macos/Audaci.app/Contents/MacOS/vlc/
+          cp -r /Volumes/VLC/VLC.app/Contents/MacOS/plugins build/macos/Audaci.app/Contents/MacOS/vlc/
+          
+          echo "Detaching VLC DMG..."
+          hdiutil detach /Volumes/VLC
+          rm vlc-macos.dmg
+          
+          echo "Delocating bundled VLC libraries..."
+          delocate-path -v build/macos/Audaci.app/Contents/MacOS/vlc
+          
+          # 3. Находим все папки PIL внутри собранного бандла
           # serious_python может иметь несколько копий или специфичную структуру
           echo "Searching for PIL in the bundle..."
           BUNDLE_PIL_DIRS=$(find build/macos -name "PIL" -type d)

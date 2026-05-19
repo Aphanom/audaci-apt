@@ -1,10 +1,72 @@
-import vlc
-import time
+import os
+import sys
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+def setup_vlc_paths():
+    """
+    Dynamically configures VLC library search paths for portable standalone builds.
+    Must be called BEFORE importing the vlc module.
+    """
+    if getattr(sys, 'frozen', False):
+        app_dir = Path(sys.executable).parent
+    else:
+        app_dir = Path(__file__).resolve().parent.parent
+
+    # Check for local 'vlc' directory next to the application
+    local_vlc = app_dir / "vlc"
+    
+    if sys.platform.startswith("win"):
+        lib_name = "libvlc.dll"
+        dll_path = local_vlc / lib_name
+        if dll_path.exists():
+            os.environ["PYTHON_VLC_LIB_PATH"] = str(dll_path)
+            os.environ["PYTHON_VLC_MODULE_PATH"] = str(local_vlc / "plugins")
+            if hasattr(os, "add_dll_directory"):
+                try:
+                    os.add_dll_directory(str(local_vlc))
+                except Exception as e:
+                    logger.warning(f"Failed to add DLL directory {local_vlc}: {e}")
+            logger.info(f"Using bundled Windows VLC from {dll_path}")
+
+    elif sys.platform.startswith("darwin"):
+        lib_name = "libvlc.dylib"
+        dll_path = local_vlc / lib_name
+        if dll_path.exists():
+            os.environ["PYTHON_VLC_LIB_PATH"] = str(dll_path)
+            os.environ["PYTHON_VLC_MODULE_PATH"] = str(local_vlc / "plugins")
+            logger.info(f"Using bundled macOS VLC from {dll_path}")
+
+    else:
+        # Linux
+        lib_name = "libvlc.so.5"
+        dll_path = local_vlc / lib_name
+        if dll_path.exists():
+            os.environ["PYTHON_VLC_LIB_PATH"] = str(dll_path)
+            os.environ["PYTHON_VLC_MODULE_PATH"] = str(local_vlc / "plugins")
+            logger.info(f"Using bundled Linux VLC from {dll_path}")
+
+# Run setup before importing vlc
+setup_vlc_paths()
+
+try:
+    import vlc
+    VLC_AVAILABLE = True
+except Exception as e:
+    logger.critical(f"VLC library load failed: {e}. Playback will be disabled.")
+    vlc = None
+    VLC_AVAILABLE = False
+
+import time
 import subprocess
 
 class AudioPlayer:
     def __init__(self, normalize=False):
+        if not VLC_AVAILABLE or vlc is None:
+            raise RuntimeError("VLC media player engine is not available on this system. Please check dependencies.")
+            
         # 1. Формируем аргументы для движка VLC
         vlc_args = []
         if normalize:
@@ -14,10 +76,14 @@ class AudioPlayer:
 
         # 2. Инициализируем инстанс и сам плеер
         # Используем распаковку *vlc_args, так VLC надежнее читает параметры
-        if vlc_args:
-            self.instance = vlc.Instance(*vlc_args)
-        else:
-            self.instance = vlc.Instance()
+        try:
+            if vlc_args:
+                self.instance = vlc.Instance(*vlc_args)
+            else:
+                self.instance = vlc.Instance()
+        except Exception as e:
+            logger.critical(f"Failed to create VLC Instance: {e}")
+            raise RuntimeError(f"Failed to initialize VLC Instance: {e}")
             
         self.player = self.instance.media_player_new()
 
