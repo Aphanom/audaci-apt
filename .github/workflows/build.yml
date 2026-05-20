@@ -205,13 +205,16 @@ jobs:
             fi
           done
 
-
+          # 4. Упаковываем в ZIP для сохранения symlinks и hidden files (.dylibs)
+          echo "Packaging Audaci.app into a ZIP archive..."
+          cd build/macos
+          zip -r -y Audaci-macOS.zip Audaci.app
 
       - name: Артефакт
         uses: actions/upload-artifact@v4
         with:
           name: Audaci-macOS
-          path: build/macos/
+          path: build/macos/Audaci-macOS.zip
           retention-days: 14
 
   # ──────────────────────────────────────────────
