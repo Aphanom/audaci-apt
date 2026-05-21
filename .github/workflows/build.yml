@@ -134,6 +134,7 @@ jobs:
         run: |
           # 1. Собираем приложение
           flet build macos --product "Audaci" --no-rich-output
+          mv build/macos/*.app build/macos/Audaci.app
           
           # 2. Скачивание и упаковка VLC для macOS
           ARCH=$(uname -m)
